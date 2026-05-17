@@ -8,7 +8,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from groq import Groq # استدعاء المكتبة الرسمية لمعالجة الصوت
+from groq import Groq 
 
 # 1. إعدادات الواجهة والتهيئة الأمنية للمستخدم
 st.set_page_config(page_title="OmniSearch Enterprise AI", page_icon="🎙️", layout="wide")
@@ -173,11 +173,9 @@ if user_text_input:
 elif audio_file:
     if audio_file.size != st.session_state.last_processed_audio_size:
         st.session_state.last_processed_audio_size = audio_file.size
-        with st.spinner("🎙️ جاري ترجمة صوتك وفهم الكلام..."):
+        with st.spinner("🎙️ جاري معالجة صوتك بالعربية..."):
             try:
-                # إرسال الملف الصوتي الحقيقي لـ Groq Whisper لترجمته فوراً لنص
                 client = Groq(api_key=GROQ_API_KEY)
-                # حفظ الملف مؤقتاً لإرساله
                 temp_audio_path = os.path.join(USER_DIR, "temp_voice.wav")
                 with open(temp_audio_path, "wb") as f:
                     f.write(audio_file.getbuffer())
@@ -186,15 +184,15 @@ elif audio_file:
                     transcription = client.audio.transcriptions.create(
                         file=(temp_audio_path, file.read()),
                         model="whisper-large-v3",
+                        language="ar",  # 🔥 هنا السر الفتاك! إجبار النظام على سماعك وفهمك باللغة العربية حصراً
                         response_format="text"
                     )
                 current_query = str(transcription).strip()
-                # تنظيف الملف المؤقت
                 if os.path.exists(temp_audio_path):
                     os.remove(temp_audio_path)
             except Exception as e:
                 current_query = ""
-                st.error("حدث خطأ أثناء معالجة الصوت، يرجى المحاولة مرة أخرى.")
+                st.error("حدث خطأ في قراءة الصوت، جرب مجدداً.")
 
 # 7. إرسال الطلب ومعالجة الرد والنطق الفوري
 if current_query != "":
@@ -203,14 +201,12 @@ if current_query != "":
     
     # جلب السياق من الـ PDF
     pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب بناءً على معلوماتك العامة السريعة."
-    has_pdf = False
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
             retrieved_docs = vector_store.similarity_search(current_query, k=2)
             if retrieved_docs:
                 pdf_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
-                has_pdf = True
         except Exception:
             pass
 
@@ -221,7 +217,7 @@ if current_query != "":
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "You are OmniSearch Pro AI, a fast multi-lingual assistant.\n"
-            "Detect the user's language automatically (Arabic, English, or French) and reply with the same language perfectly.\n"
+            "Respond to the user naturally in Arabic since the input is forced to Arabic.\n"
             "Keep the answer straight to the point and very concise (2 sentences maximum) so that it is suitable for instant text-to-speech presentation.\n\n"
             "Context from uploaded PDFs:\n{pdf_context}"
         )),
@@ -240,17 +236,13 @@ if current_query != "":
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # 🔊 توليد النطق التلقائي متعدد اللغات
+    # 🔊 توليد النطق التلقائي للعربية
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
     window.speechSynthesis.cancel();
     var msg = new SpeechSynthesisUtterance('{clean_text}');
-    if('{clean_text}'.match(/[a-zA-Z]/)) {{
-        msg.lang = '{clean_text}'.includes('Bonjour') || '{clean_text}'.includes('de') ? 'fr-FR' : 'en-US';
-    }} else {{
-        msg.lang = 'ar-SA';
-    }}
+    msg.lang = 'ar-SA';  // نطق الرد باللكنة العربية الفصحى دائماً
     window.speechSynthesis.speak(msg);
     </script>
     """
