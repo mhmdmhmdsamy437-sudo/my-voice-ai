@@ -156,15 +156,15 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الضخم (Llama 3 70B)
+# 3. تهيئة محرك الذكاء الاصطناعي الأحدث والمستقر عالمياً بدلاً من الموديل القديم الملغي
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.1,                  # دقة متناهية لمنع التأليف والخطأ المعرفي
+        temperature=0.1,                          # ثبات عالي لمنع الهلوسة والخطأ في الأسماء والمعلومات
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3-70b-8192"     # الموديل العملاق
+        model_name="llama-3.3-70b-versatile"     # تم استبدال النموذج الملغي بالنموذج العملاق الأحدث والمستقر حالياً
     )
 
 llm = init_groq_llm()
@@ -285,7 +285,7 @@ if final_query != "":
         try:
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content.strip()
-        except Exception:
+        except Exception as e:
             ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
     
     save_user_message("ai", ai_response)
