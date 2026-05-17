@@ -83,7 +83,7 @@ st.title("🎙️ صوتك | Sawtak AI")
 st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية")
 st.markdown("---")
 
-# ✨ نافذة التثبيت الرسمية المدمجة بلغة بايثون داخل الواجهة (تظهر وتختفي بذكاء)
+# ✨ نافذة التثبيت الرسمية المدمجة داخل الواجهة
 if "show_install_banner" not in st.session_state:
     st.session_state.show_install_banner = True
 
@@ -156,15 +156,15 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الأساسي والأقوى لمنع الأخطاء والهلوسة
+# 3. تهيئة محرك الذكاء الاصطناعي الضخم (Llama 3 70B)
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.1,                  # تثبيت قيمة منخفضة جداً لتعزيز الالتزام الصارم بالحقائق التاريخية والأسماء
+        temperature=0.1,                  # دقة متناهية لمنع التأليف والخطأ المعرفي
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3-70b-8192"     # استخدام الموديل الأكبر والأنضج لمنع الهلوسة والأخطاء الإملائية
+        model_name="llama-3-70b-8192"     # الموديل العملاق
     )
 
 llm = init_groq_llm()
@@ -210,7 +210,7 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. قسم أدوات الإدخال والمعالجة المباشرة والآمنة
+# 6. قسم أدوات الإدخال والمعالجة
 st.markdown("### 🎙️ أداة الإدخال")
 col_audio, col_space = st.columns([1, 2])
 
@@ -249,12 +249,12 @@ elif audio_file:
     except Exception:
         st.warning("يرجى المحاولة مجدداً والتحدث بوضوح.")
 
-# 7. معالجة الرد النهائي المباشر والمنطقي تماماً
+# 7. معالجة الرد النهائي
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     
-    pdf_context = "لا توجد مستندات مرفوعة حالياً. أجب مباشرة بناءً على معرفتك العامة التاريخية والعلمية بدقة وثبات."
+    pdf_context = "لا توجد مستندات مرفوعة حالياً."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
@@ -271,9 +271,9 @@ if final_query != "":
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت مساعد ذكي تفاعلي، دقيق للغاية وعالمي يُدعى (صوتك AI). "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية بأسلوب رصين وموثوق بنسبة 100%. "
-            "مهم جداً: التزم التزاماً صارماً بالحقائق والأسماء والشخصيات التاريخية والرياضية الحقيقية (مثل لاعبين وأندية كرة القدم الحقيقية، والمنادصب السياسية الفعلية للأشخاص). "
-            "ممنوع تماماً اختراع أو تأليف أو تخمين أسماء أو مناصب أو خلط الحروف والإملاء. "
+            "أجب على سؤال المستخدم مباشرة باللغة العربية وبأسلوب رصين وموثوق بنسبة 100%. "
+            "التزم التزاماً صارماً بالحقائق والأسماء والشخصيات التاريخية والرياضية الحقيقية (مثل لاعبين وأندية كرة القدم الحقيقية، والمناصب السياسية الفعلية للأشخاص). "
+            "ممنوع تماماً اختراع أو تأليف أو تخمين أسماء أو خلط الحروف والإملاء. "
             "تجنب تماماً كتابة مقدمات مثل 'الإجابة:' أو 'الرد:' في رسالتك."
         )),
         ("user", "سجل المحادثة الأخيرة:\n{history}\n\nسؤال المستخدم الحالي: {query}")
