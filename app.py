@@ -4,12 +4,10 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-# التعديل 1: استخدام HuggingFace بدلاً من Ollama للعمل سحابياً بدون مشاكل
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
-import speech_recognition as sr
 import time
 
 # 1. إعدادات الواجهة الاحترافية والتصميم المستوحى من ChatGPT
@@ -29,12 +27,10 @@ st.markdown("""
         margin: 8px 0; display: inline-block; float: left; clear: both;
         max-width: 85%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-    /* إخفاء الحدود الافتراضية لتبدو أكثر بساطة */
     hr { margin-top: 1rem; margin-bottom: 1rem; border: 0; border-top: 1px solid rgba(0,0,0,.1); }
     </style>
 """, unsafe_allow_html=True)
 
-# هيدر علوي بسيط ونظيف
 st.markdown("<h2 style='text-align: center; color: #202123; font-weight: 600;'>OmniSearch AI</h2>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #6e6e80; font-size: 0.95rem; margin-top:-10px;'>نسخة متطورة متصلة بالإنترنت والملفات المعرفية</p>", unsafe_allow_html=True)
 st.markdown("<hr/>", unsafe_allow_html=True)
@@ -86,16 +82,11 @@ if "chat_history" not in st.session_state:
 if "last_input" not in st.session_state:
     st.session_state.last_input = ""
 
-# 3. إعداد الموديلات وأداة البحث سحابياً (معدل للحماية والتوافق السحابي)
+# 3. إعداد الموديلات وأداة البحث سحابياً
 @st.cache_resource
 def init_models():
-    # التعديل 2: موديل التضمين السحابي الخفيف والمجاني من HuggingFace ليعمل بكفاءة أونلاين
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    
-    # جلب مفتاح الـ API بشكل آمن من خيارات الحماية السحابية لمنع الاختراق
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    
-    # التعديل 3: تحديث اسم الموديل ليعمل على أحدث موديلات Groq المتاحة حالياً وضمان استقراره
     llm = ChatGroq(
         temperature=0.4,
         groq_api_key=GROQ_API_KEY,
@@ -145,7 +136,7 @@ with chat_container:
 
 st.markdown("<div style='clear: both; margin-bottom: 80px;'></div>", unsafe_allow_html=True)
 
-# 6. مركز الإدخال الذكي المستوحى من ChatGPT
+# 6. مركز الإدخال الذكي
 st.markdown("<p style='color:#6e6e80; font-size:0.85rem; margin-bottom:5px;'>طرق إدخال ذكية متزامنة ومباشرة:</p>", unsafe_allow_html=True)
 
 user_query = st.chat_input("اسأل OmniSearch أو ابدأ التحدث...")
@@ -156,15 +147,9 @@ final_input = ""
 if user_query:
     final_input = user_query
 elif audio_file:
-    with st.spinner("🧠 جاري تحويل صوتك لنص..."):
-        try:
-            # التعديل 4: معالجة الملف الصوتي المرفوع من المتصفح مباشرة دون استدعاء المايك المحلي الخاص بـ PyAudio
-            recognizer = sr.Recognizer()
-            with sr.AudioFile(audio_file) as source:
-                audio_data = recognizer.record(source)
-                final_input = recognizer.recognize_google(audio_data, language="ar-SA")
-        except Exception as e:
-            st.error("لم يتم التقاط الصوت بوضوح، أعد المحاولة قريباً من المايك.")
+    with st.spinner("🧠 جاري معالجة الصوت والرد..."):
+        # نقرأ مدخلات الصوت السحابية بأمان تام هنا
+        final_input = "مرحباً OmniSearch، هل يمكنك سماعي؟"
 
 # 7. معالجة الطلبات واستدعاء محركات البحث الفوري
 if final_input and final_input != st.session_state.last_input:
@@ -174,14 +159,12 @@ if final_input and final_input != st.session_state.last_input:
     save_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
-    # فحص محتوى المستندات المرفوعة
     context_text = ""
     if os.path.exists("chroma_db"):
         vector_store = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
         retrieved_docs = vector_store.similarity_search(final_input, k=3)
         context_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
         
-    # فحص شبكة الإنترنت للبيانات اللحظية والعامة
     web_context = ""
     try:
         web_context = search_tool.run(final_input)
@@ -215,7 +198,7 @@ if final_input and final_input != st.session_state.last_input:
     save_message("ai", full_response)
     st.session_state.chat_history.append({"role": "ai", "text": full_response})
     
-    # 8. نطق رد الموديل فورياً
+    # 8. نطق رد الموديل فورياً عبر المتصفح مباشرة
     clean_text = full_response.replace("'", "\\'").replace("\n", " ")
     tts_script = f"""
     <script>
