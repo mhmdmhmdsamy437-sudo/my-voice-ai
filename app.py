@@ -25,7 +25,6 @@ if "audio_session_key" not in st.session_state:
 USER_DIR = f"user_data/{st.session_state.user_id}"
 USER_DOCS_DIR = os.path.join(USER_DIR, "temp_docs")
 
-# مصفوفة مؤقتة لحفظ سياق المستندات في الجلسة لتجنب مشاكل Chroma نهائياً
 if "pdf_context_memory" not in st.session_state:
     st.session_state.pdf_context_memory = ""
 
@@ -33,7 +32,6 @@ for path in [USER_DOCS_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تحسين المظهر بالكامل ليكون بتصميم نيون داكن واحترافي ينافس التطبيقات العالمية
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117 !important; color: #f3f4f6 !important; }
@@ -58,10 +56,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# دالة البحث النظيفة والمستقرة عبر الإنترنت لضمان تحديث المعلومات (نفس الرابط القديم الشغال تماماً)
+# دالة البحث النظيفة والمستقرة عبر الإنترنت مع ميزة التنظيف الذكي للجمل الاعتراضية
 def fetch_live_web_data(query):
     try:
-        encoded_query = urllib.parse.quote(query)
+        # تنظيف الجملة الاعتراضية الصادرة من الصوت حتى لا تفسد نتائج محرك البحث
+        clean_query = re.sub(r'^(لا قصدي عن|لا قصدي|قصدي عن|قصدي|اسمع|اسمعني|تعديل|لا لا)\s*', '', query, flags=re.IGNORECASE).strip()
+        if not clean_query:
+            clean_query = query
+            
+        encoded_query = urllib.parse.quote(clean_query)
         url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         with urllib.request.urlopen(req, timeout=6) as response:
@@ -159,7 +162,6 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# واجهة التطبيق الرئيسية الشاشات
 st.title("🎙️ صوتك | Sawtak AI")
 st.caption("النسخة فائقة الاستقرار: تعمل بنجاح على بيئات بايثون الحديثة وتدعم الاتصال الحي والإنصات المباشر")
 
@@ -200,12 +202,11 @@ elif audio_file:
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
-                # تحديث الـ Prompt لربط محرك الصوت بكلمات التصحيح العامية لزيادة دقة الفهم اللحظي
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="لا قصدي، قصدي كذا، التعديل هو، ميسي، الدوري، بوردو، أهلاً، كيف الحال، وش أخبارك. المتحدث يصحح كلامه بلهجة عامية ومحلية واضحة.",
+                    prompt="لا قصدي، قصدي كذا، التعديل هو، ميسي، الدوري، بوردو، أهلاً، كيف الحال. المتحدث يصحح كلامه بلهجة عامية ومحلية واضحة.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -237,7 +238,7 @@ if final_query != "":
             f"هام جداً: يجب أن تصيغ ردك وتتحدث بالكامل باستخدام: ({dialect}) بأسلوب طبيعي ومباشر.\n\n"
             "⚠️ قواعد صارمة لمنع التشتت وتداخل المعلومات:\n"
             "1. إذا بدأ المستخدم سؤاله بـ 'لا قصدي عن...' أو قام بتعديل مسار كلامه، فانتبه فوراً للتصحيح الأخير واهمل المقاصد القديمة التي رفضها وعبر عنها بوضوح.\n"
-            "2. ادخل في صلب الإجابة فوراً، لا تكرر ديباجات ترحيبية ولا تعيد صياغة السؤال. أعطه الحقائق المرتبة مباشرة.\n\n"
+            "2. ادخل في صلب الإجابة فوراً، لا تكرر ديباجات ترحيبية ولا تعيد صياغة السؤال. أعطه الحقائق المرتبة مباشرة وبدون حشو.\n\n"
             "معلومات الويب الحية المحدثة حالياً:\n{live_web_context}\n\n"
             "سياق المستندات المرفوعة:\n{pdf_context}"
         ))
@@ -253,7 +254,6 @@ if final_query != "":
     prompt_template = ChatPromptTemplate.from_messages(messages_input)
     
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-    # تقليل الـ temperature إلى 0.2 لجعله حاداً وملتزماً بالسياق المباشر دون تشتت
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
     
     formatted_prompt = prompt_template.format_messages(
