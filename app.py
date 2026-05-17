@@ -162,8 +162,13 @@ def init_groq_llm():
 
 llm = init_groq_llm()
 
-# 4. إدارة المستندات (الـ Sidebar الجانبي)
+# 4. إدارة المستندات والإعدادات (الـ Sidebar الجانبي)
 with st.sidebar:
+    st.markdown("### ⚙️ التحكم بالصوت")
+    # زر واحد متكامل للتشغيل والإيقاف على طريقة التطبيقات العالمية وحسب رغبتك
+    enable_tts = st.toggle("تفعيل النطق الصوتي التلقائي 🔊", value=True)
+    
+    st.markdown("---")
     st.markdown("### 📁 المستندات والملفات الذكية")
     st.info(f"المستخدم: `Sawtak-{st.session_state.user_id[:6].upper()}`")
     
@@ -264,7 +269,6 @@ if final_query != "":
         except Exception:
             pass
 
-    # توسيع الذاكرة الرقمية لقراءة سياق أعمق من الحوار
     history_context = ""
     for msg in st.session_state.chat_history[-7:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
@@ -275,7 +279,7 @@ if final_query != "":
             "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
             "📋 تعليمات التشغيل الحازمة:\n"
             "1. إذا كان سؤال المستخدم عاماً (مثل: معلومات رياضية، سياسية، تاريخية، أو طبية عامة)، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
-            "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه، اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
+            "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه, اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
             "3. لا تكتب أبداً في بداية الرد مقدمات مكررة مثل 'الإجابة:' أو 'الرد:'. ابدأ صلب موضوع إجابتك فوراً.\n\n"
             "سياق الملفات المرفوعة:\n{pdf_context}"
         )),
@@ -284,13 +288,11 @@ if final_query != "":
     
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context if pdf_context else "لا توجد مستندات مرفوعة حالياً.", history=history_context, query=final_query)
     
-    # تنفيذ الاستجابة بالتدفق النصي الفوري المباشر (Streaming)
     with chat_placeholder.container():
         display_chat()
         with st.chat_message("assistant", avatar=None):
             st.markdown("<style>.stChatMessage { background-color: transparent !important; border:none !important; }</style>", unsafe_allow_html=True)
             try:
-                # تفعيل نظام الـ generator للتدفق الفوري كلمة بكلمة
                 response_stream = llm.stream(formatted_prompt)
                 ai_response = st.write_stream(response_stream)
                 ai_response = ai_response.strip()
@@ -301,17 +303,18 @@ if final_query != "":
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # نطق الرد الصوتي بعد اكتمال التدفق النصي
-    clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
-    js_universal_tts = f"""
-    <script>
-    window.speechSynthesis.cancel();
-    var msg = new SpeechSynthesisUtterance('{clean_text}');
-    msg.lang = 'ar-SA';
-    window.speechSynthesis.speak(msg);
-    </script>
-    """
-    st.components.v1.html(js_universal_tts, height=0)
+    # نطق الرد الصوتي تلقائياً فقط إن كان زر التحكم (enable_tts) مفعّلاً
+    if enable_tts:
+        clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
+        js_universal_tts = f"""
+        <script>
+        window.speechSynthesis.cancel();
+        var msg = new SpeechSynthesisUtterance('{clean_text}');
+        msg.lang = 'ar-SA';
+        window.speechSynthesis.speak(msg);
+        </script>
+        """
+        st.components.v1.html(js_universal_tts, height=0)
     
     st.rerun()
 
