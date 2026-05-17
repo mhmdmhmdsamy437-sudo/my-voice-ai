@@ -7,22 +7,23 @@ from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 
-# 1. إعدادات الواجهة الأساسية
+# 1. الإعدادات الأساسية للواجهة
 st.set_page_config(page_title="OmniSearch Voice AI", page_icon="🎙️", layout="wide")
 
-# تنسيق واجهة المستخدم الاحترافية
+# تنسيق واجهة المستخدم وتأمين اتجاه النصوص (RTL)
 st.markdown("""
     <style>
     .main { background-color: #ffffff; }
+    .chat-container { display: flex; flex-direction: column; gap: 10px; margin-bottom: 40px; }
     .chat-bubble-user {
         background-color: #f0f2f6; color: #1d1d1d; padding: 12px 16px; 
-        border-radius: 15px; margin: 8px 0; display: block; float: right; clear: both;
-        max-width: 75%; font-family: Arial, sans-serif; text-align: right; direction: rtl;
+        border-radius: 15px; align-self: flex-end; max-width: 75%;
+        font-family: Arial, sans-serif; text-align: right; direction: rtl;
     }
     .chat-bubble-ai {
         background-color: #e8f0fe; color: #0d0d0d; padding: 12px 16px; 
-        border-radius: 15px; margin: 8px 0; display: block; float: left; clear: both;
-        max-width: 75%; font-family: Arial, sans-serif; text-align: right; direction: rtl;
+        border-radius: 15px; align-self: flex-start; max-width: 75%;
+        font-family: Arial, sans-serif; text-align: right; direction: rtl;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -34,7 +35,7 @@ st.markdown("---")
 if not os.path.exists("temp_docs"):
     os.makedirs("temp_docs")
 
-# 2. إدارة قاعدة البيانات المحلية (SQLite) لثبات الذاكرة
+# 2. إدارة قاعدة البيانات المحلية لجلسة المحادثة
 def init_db():
     conn = sqlite3.connect("chat_history.db", check_same_thread=False)
     cursor = conn.cursor()
@@ -78,7 +79,7 @@ init_db()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = load_chat_history()
 
-# 3. تهيئة سحابة موديل ذكاء Groq الاصطناعي
+# 3. تهيئة موديل Groq الاصطناعي
 @st.cache_resource
 def init_models():
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
@@ -91,7 +92,7 @@ def init_models():
 
 llm = init_models()
 
-# 4. القائمة الجانبية المخصصة للمستندات والملفات
+# 4. القائمة الجانبية لإدارة المستندات
 with st.sidebar:
     st.markdown("### 📁 ملفات ومستندات الـ PDF")
     uploaded_files = st.file_uploader("ارفع ملفات الـ PDF الخاصة بك:", type=["pdf"], accept_multiple_files=True)
@@ -118,59 +119,25 @@ if process_button and uploaded_files:
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory="chroma_db")
         st.sidebar.success("✅ تم تحديث الذاكرة بنجاح!")
 
-# 5. عرض ساحة المحادثة والشات بشكل مستقر
-chat_placeholder = st.container()
-with chat_placeholder:
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='chat-bubble-ai'>🤖 {message['text']}</div>", unsafe_allow_html=True)
+# 5. عرض صندوق الشات والمحادثات السابقة
+st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+for message in st.session_state.chat_history:
+    if message["role"] == "user":
+        st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='chat-bubble-ai'>🤖 {message['text']}</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<div style='clear: both; margin-bottom: 60px;'></div>", unsafe_allow_html=True)
+# 6. صندوق الإدخال الرئيسي والمستقر (مربع الشات الرسمي)
+final_input = st.chat_input("اكتب رسالتك أو استفسارك هنا واضغط Enter...")
 
-# 6. قسم التحكم الصوتي المباشر والآمن والمستقر (بدون تجميد)
-st.markdown("### 🎙️ التحكم الصوتي والكتابي")
-voice_text_input = ""
-
-# زر إلتقاط الصوت الفوري والآمن من المتصفح
-js_voice_bridge = """
-<script>
-function startListening() {
-    var recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'ar-SA';
-    recognition.start();
-    recognition.onresult = function(event) {
-        var text = event.results[0][0].transcript;
-        parent.postMessage({type: 'streamlit:setComponentValue', value: text}, '*');
-    };
-}
-</script>
-<button onclick="startListening()" style="width:100%; padding:10px; background-color:#ff4b4b; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
-    🎙️ اضغط هنا للتحدث بالصوت
-</button>
-"""
-
-# عرض زر المايكروفون والحصول على النص المنطوق مباشرة
-bridge_component = st.components.v1.html(js_voice_bridge, height=50)
-
-# صندوق الكتابة اليدوية الرئيسي والفعال دائماً
-user_text_input = st.chat_input("أو اكتب رسالتك يدوياً هنا واضغط Enter...")
-
-# تحديد المدخل النهائي المستقر
-final_input = ""
-if user_text_input:
-    final_input = user_text_input
-elif bridge_component and isinstance(bridge_component, str) and bridge_component.strip() != "":
-    final_input = bridge_component
-
-# 7. معالجة وتوليد الإجابات الفورية من خلال دالة invoke المستقرة
+# 7. معالجة وتوليد الإجابات الفورية فور الإرسال
 if final_input:
-    # حفظ وعرض رسالة المستخدم
+    # حفظ رسالة المستخدم وعرضها فوراً
     save_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
-    # جلب السياق من الـ PDF إن وجد
+    # جلب السياق من قاعدة بيانات المستندات
     pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب مباشرة من معلوماتك العامة."
     if os.path.exists("chroma_db") and len(os.listdir("chroma_db")) > 0:
         try:
@@ -181,7 +148,7 @@ if final_input:
         except Exception:
             pass
 
-    # تجهيز سجل الذاكرة
+    # تجهيز سياق الذاكرة لآخر رسائل
     history_context = ""
     for msg in st.session_state.chat_history[-4:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
@@ -189,7 +156,7 @@ if final_input:
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت OmniSearch AI، مساعد ذكي وموجز.\n"
-            "أجب دائماً باللغة العربية الفصحى وبشكل مختصر (سطر أو سطرين فقط).\n\n"
+            "أجب دائماً باللغة العربية الفصحى وبشكل مختصر جداً (سطر أو سطرين فقط).\n\n"
             "سياق ملفات الـ PDF:\n{pdf_context}"
         )),
         ("user", "سجل الجلسة:\n{history}\n\nالسؤال: {query}")
@@ -197,16 +164,16 @@ if final_input:
     
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_input)
     
-    # توليد الإجابة
+    # استدعاء الموديل وتوليد الرد
     with st.spinner("🤖 جاري صياغة الرد..."):
         response_object = llm.invoke(formatted_prompt)
         ai_response = response_object.content
     
-    # حفظ وعرض رد الذكاء الاصطناعي
+    # حفظ رد الموديل في قاعدة البيانات والـ Session
     save_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # إضافة ميزة نطق الرد تلقائياً فور ظهوره لراحة كاملة
+    # نطق الرد برمجياً بمجرد ظهوره للمستخدم
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_tts = f"""
     <script>
@@ -218,5 +185,6 @@ if final_input:
     """
     st.components.v1.html(js_tts, height=0)
     
+    # إعادة تحميل الصفحة لعرض النتائج الجديدة بالكامل
     st.rerun()
 
