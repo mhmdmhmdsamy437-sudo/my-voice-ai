@@ -25,12 +25,22 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تثبيت التصميم الداكن الفاخر بنسبة 100% ومنع تداخل الفقاعات
+# تثبيت التصميم الداكن الفاخر بنسبة 100% وإخفاء أدوات المطورين وجيت هاب تماماً
 st.markdown("""
     <style>
+    /* إخفاء زر الجيت هاب والشريط العلوي لتبدو كواجهة تطبيق كاملة */
+    #MainMenu, header, footer {
+        visibility: hidden !important;
+        height: 0px !important;
+    }
+    .stAppDeployButton {
+        display: none !important;
+    }
+    
     .stApp, .main, .block-container {
         background-color: #111827 !important;
         color: #f3f4f6 !important;
+        padding-top: 10px !important;
     }
     .chat-container {
         display: flex;
@@ -80,7 +90,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية")
+st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية بجودة تدفق عالمية")
 st.markdown("---")
 
 # 2. إدارة قاعدة البيانات المحلية للمحادثات
@@ -139,7 +149,7 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي بنسبة متزنة جداً (0.1 للجمع بين الإبداع الواقعي والحقائق)
+# 3. تهيئة محرك الذكاء الاصطناعي بنسبة متزنة جداً
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
@@ -184,14 +194,20 @@ if process_button and uploaded_files:
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
         st.sidebar.success("✅ تم الفهرسة بنجاح!")
 
-# 5. عرض ساحة المحادثة
-st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
-for message in st.session_state.chat_history:
-    if message["role"] == "user":
-        st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
+# 5. عرض ساحة المحادثة المستقرة
+chat_placeholder = st.empty()
+
+def display_chat():
+    with chat_placeholder.container():
+        st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+        for message in st.session_state.chat_history:
+            if message["role"] == "user":
+                st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+display_chat()
 
 # 6. قسم أدوات الإدخال والمعالجة
 st.markdown("### 🎙️ أداة الإدخال")
@@ -232,10 +248,11 @@ elif audio_file:
     except Exception:
         st.warning("يرجى المحاولة مجدداً والتحدث بوضوح.")
 
-# 7. معالجة الرد النهائي
+# 7. معالجة الرد النهائي بنظام التدفق الذكي العالمي (Streaming)
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
+    display_chat()
     
     pdf_context = ""
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
@@ -247,36 +264,44 @@ if final_query != "":
         except Exception:
             pass
 
+    # توسيع الذاكرة الرقمية لقراءة سياق أعمق من الحوار
     history_context = ""
-    for msg in st.session_state.chat_history[-3:-1]:
+    for msg in st.session_state.chat_history[-7:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
-    # هندسة توجيهات عبقرية ومتزنة تفصل بين الثقافة العامة وسياق الملفات
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت (صوتك AI)، مساعد ذكي موسوعي تفاعلي، دقيق للغاية وعالمي. "
-            "أجب على سؤال المستخدم مباشرة بالغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
+            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
             "📋 تعليمات التشغيل الحازمة:\n"
             "1. إذا كان سؤال المستخدم عاماً (مثل: معلومات رياضية، سياسية، تاريخية، أو طبية عامة)، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
             "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه، اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
             "3. لا تكتب أبداً في بداية الرد مقدمات مكررة مثل 'الإجابة:' أو 'الرد:'. ابدأ صلب موضوع إجابتك فوراً.\n\n"
-            "سياق الملفات المرفوعة (استخدمه فقط إذا كان السؤال يدور حول ملفات المستخدم):\n{pdf_context}"
+            "سياق الملفات المرفوعة:\n{pdf_context}"
         )),
         ("user", "سجل الحوار السابق للرجوع إليه عند الحاجة:\n{history}\n\nسؤال المستخدم الحالي الآن: {query}")
     ])
     
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context if pdf_context else "لا توجد مستندات مرفوعة حالياً.", history=history_context, query=final_query)
     
-    with st.spinner("🤖 جاري صياغة الرد المتزن..."):
-        try:
-            response_object = llm.invoke(formatted_prompt)
-            ai_response = response_object.content.strip()
-        except Exception:
-            ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
+    # تنفيذ الاستجابة بالتدفق النصي الفوري المباشر (Streaming)
+    with chat_placeholder.container():
+        display_chat()
+        with st.chat_message("assistant", avatar=None):
+            st.markdown("<style>.stChatMessage { background-color: transparent !important; border:none !important; }</style>", unsafe_allow_html=True)
+            try:
+                # تفعيل نظام الـ generator للتدفق الفوري كلمة بكلمة
+                response_stream = llm.stream(formatted_prompt)
+                ai_response = st.write_stream(response_stream)
+                ai_response = ai_response.strip()
+            except Exception:
+                ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
+                st.write(ai_response)
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
+    # نطق الرد الصوتي بعد اكتمال التدفق النصي
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
