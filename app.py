@@ -5,7 +5,8 @@ import streamlit as st
 import time
 import io
 import urllib.request
-import json
+import urllib.parse
+from bs4 import BeautifulSoup
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -13,7 +14,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
 
-# 1. إعدادات الصفحة
+# 1. تهيئة وإعداد واجهة المستخدم الذكية
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -30,6 +31,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
+# تنسيق واجهة العرض لمنع التداخل على الهواتف
 st.markdown("""
     <style>
     .stApp { background-color: #111827 !important; color: #f3f4f6 !important; }
@@ -49,28 +51,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("النسخة المصلحة بالكامل: معالجة ذكية ومحرك بحث إنترنت مستقر")
+st.caption("النسخة النهائية المستقرة: اتصال مباشر بالإنترنت + دعم كامل للهجات")
 
-# دالة بحث بديلة ومستقرة عبر الإنترنت لضمان جلب حقائق 2026
-def stable_web_search(query):
+# دالة برمجية للبحث المباشر في الويب دون حظر لضمان جلب حقائق اليوم
+def fetch_live_web_data(query):
     try:
-        # استخدام نظام بحث مباشر عبر ويب مفتوح لتجنب حظر الأداة السابقة
-        safe_query = urllib.parse.quote(query)
-        url = f"https://html.duckduckgo.com/html/?q={safe_query}"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            html = response.read().decode('utf-8')
-            # استخراج النصوص الأساسية بشكل مبسط وسريع
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(html, 'html.parser')
-            results = [a.get_text() for a in soup.find_all('a', class_='result__snippet')[:3]]
-            if results:
-                return "\n".join(results)
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=6) as response:
+            soup = BeautifulSoup(response.read().decode('utf-8'), 'html.parser')
+            snippets = [snippets.get_text() for snippets in soup.find_all('a', class_='result__snippet')[:3]]
+            if snippets:
+                return "\n".join(snippets)
     except Exception:
         pass
-    return "تعذر جلب بيانات حية، يرجى الاعتماد على سياق عام."
+    return "لا توجد نتائج بحث مباشرة متوفرة."
 
-# 2. لوحة التحكم وإدارة الملفات
+# 2. لوحة التحكم
 with st.expander("⚙️ لوحة التحكم وإدارة المستندات"):
     enable_tts = st.toggle("تفعيل الرد الصوتي التلقائي 🔊", value=True)
     st.markdown("---")
@@ -94,7 +92,7 @@ with st.expander("⚙️ لوحة التحكم وإدارة المستندات")
 
 st.markdown("---")
 
-# 3. إدارة الرسائل
+# 3. إدارة رسائل قاعدة البيانات المحلية
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -142,9 +140,9 @@ def display_chat():
 
 display_chat()
 
-# 4. أدوات الإدخال المحدثة والمحمية ضد الكلمات الوهمية
+# 4. أدوات الإدخال المحمية ضد الكلمات العشوائية الفارغة
 st.markdown("### 🎙️ أدوات الإدخال")
-audio_file = st.audio_input("تحدث الآن بشكل طبيعي:", key=f"audio_input_{st.session_state.audio_session_key}")
+audio_file = st.audio_input("تحدث الآن بلهجتك الدارجة المعتادة:", key=f"audio_input_{st.session_state.audio_session_key}")
 user_text_input = st.chat_input("أو اكتب سؤالك هنا يدوياً...")
 
 final_query = ""
@@ -156,40 +154,41 @@ elif audio_file:
         audio_bytes = audio_file.read()
         audio_size = len(audio_bytes)
         
-        if audio_size > 6000 and audio_size != st.session_state.last_processed_audio_size:
+        # تجاهل الصوت القصير جداً أو المتكرر لمنع أخطاء التخريف الإملائي
+        if audio_size > 7000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري قراءة وتصحيح الكلمات تلقائياً..."):
+            with st.spinner("🎙️ جاري تصفية نبرة الصوت وتفسير اللهجة المحكية..."):
                 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
                 client = Groq(api_key=GROQ_API_KEY)
                 
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
-                # تزويد المحرك بنماذج واضحة لمنع التخريف الإملائي
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="أين يلعب ميسي الآن؟ من هو رئيس السودان؟ مساء الخير. الكلام المسموع هو لغة عربية صحيحة ولهجات محلية مفهومة.",
+                    prompt="مساء الخير، أين يلعب ميسي، كيف الحال، وش أخبارك، شو عامل. المتحدث ينطق بلهجة عربية عامية مفهومة.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
-                if len(captured_text) > 1 and "أين يلأبني" not in captured_text:
+                # فلترة الكلمات الوهمية الناتجة عن الهواء أو التقطيع
+                if len(captured_text) > 2 and "زار غير" not in captured_text and "نساء الخير" not in captured_text:
                     final_query = captured_text
                     
             st.session_state.audio_session_key = str(uuid.uuid4())[:8]
     except Exception:
         pass
 
-# 5. معالجة وتوليد الرد بالاتصال الإجباري بالإنترنت
+# 5. معالجة وتوليد الرد بالاتصال الحقيقي المباشر بالإنترنت
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     display_chat()
     
-    # استدعاء دالة البحث المستقرة والمحمية من الحظر
-    with st.spinner("🌐 جاري جلب الحقائق اللحظية لعام 2026 من الإنترنت..."):
-        internet_context = stable_web_search(final_query)
+    # استدعاء دالة البحث الحي عبر الويب غصباً عن ذاكرة الموديل القديمة
+    with st.spinner("🌐 جاري البحث في شبكة الإنترنت لجلب الحقائق الحالية..."):
+        live_web_context = fetch_live_web_data(final_query)
 
     pdf_context = ""
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
@@ -205,22 +204,23 @@ if final_query != "":
     for msg in st.session_state.chat_history[-2:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
+    # بناء ملقن نظام صارم يجبر الموديل على تجاهل معلوماته القديمة والاعتماد على بحث الويب
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت مساعد ذكي وموسوعي متصل بالإنترنت لعام 2026.\n"
-            "يجب أن تجيب بالاعتماد على سياق البحث الحي المرفق أدناه لتحديث معلوماتك دائماً وتصحيح أي أخطاء زهرت سابقاً.\n\n"
-            "سياق البحث الحالي من الإنترنت:\n{internet_context}\n\n"
+            "أنت مساعد ذكي وموسوعي متصل مباشرة بالإنترنت.\n"
+            "مهمتك القصوى هي الإجابة بدقة بالاعتماد الكامل على معلومات الويب الحية المرفقة لتحديث بياناتك وتصحيح أي معلومات قديمة فوراً (مثل الانتقالات الحالية للاعبين، الرؤساء الحاليين للبلدان، إلخ).\n\n"
+            "معلومات الويب الحية المحدثة حالياً:\n{live_web_context}\n\n"
             "سياق المستندات المرفوعة:\n{pdf_context}"
         )),
-        ("user", "الحوار السابق:\n{history}\n\nالسؤال الحالي المطلوب الإجابة عليه الآن: {query}")
+        ("user", "الحوار السابق:\n{history}\n\nالسؤال المطلوب الإجابة عليه الآن بدقة: {query}")
     ])
     
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
     
     formatted_prompt = prompt_template.format_messages(
-        internet_context=internet_context,
-        pdf_context=pdf_context if pdf_context else "لا توجد مستندات.",
+        live_web_context=live_web_context,
+        pdf_context=pdf_context if pdf_context else "لا توجد ملفات مستندات.",
         history=history_context,
         query=final_query
     )
@@ -233,7 +233,7 @@ if final_query != "":
                 ai_response = st.write_stream(response_stream)
                 ai_response = ai_response.strip()
             except Exception:
-                ai_response = "يرجى المحاولة مرة أخرى."
+                ai_response = "حصل خطأ في معالجة الطلب، يرجى إعادة المحاولة."
                 st.write(ai_response)
     
     save_user_message("ai", ai_response)
