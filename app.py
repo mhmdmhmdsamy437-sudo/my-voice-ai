@@ -83,23 +83,6 @@ st.title("🎙️ صوتك | Sawtak AI")
 st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية")
 st.markdown("---")
 
-# ✨ نافذة التثبيت الرسمية المدمجة داخل الواجهة
-if "show_install_banner" not in st.session_state:
-    st.session_state.show_install_banner = True
-
-if st.session_state.show_install_banner:
-    with st.expander("📲 اضغط هنا لتثبيت (صوتك AI) كتطبيق رسمي وموثق على هاتفك مجاناً", expanded=True):
-        st.markdown("""
-        ### 📥 كيف تجعل التطبيق على شاشة هاتفك مباشرة؟
-        لإزالة شريط المتصفح العلوي واستخدام التطبيق بأمان وسرعة كاملة كالتطبيقات الرسمية:
-        
-        * **📱 إذا كنت تستخدم آيفون (Safari):** اضغط على زر **مشاركة (Share)** بالأسفل، ثم اختر **إضافة إلى الشاشة الرئيسية (Add to Home Screen)**.
-        * **🤖 إذا كنت تستخدم أندرويد (Chrome):** اضغط على **الـ 3 نقاط** بأعلى اليسار، ثم اختر **تثبيت التطبيق (Install App)** أو **إضافة إلى الشاشة الرئيسية**.
-        """)
-        if st.button("فهمت، إغلاق التنبيه ✖️", use_container_width=True):
-            st.session_state.show_install_banner = False
-            st.rerun()
-
 # 2. إدارة قاعدة البيانات المحلية للمحادثات
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
@@ -156,15 +139,15 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الأحدث والمستقر عالمياً بدلاً من الموديل القديم الملغي
+# 3. تهيئة محرك الذكاء الاصطناعي مع تصفير الـ Temperature تماماً لمنع الاختراع
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.1,                          # ثبات عالي لمنع الهلوسة والخطأ في الأسماء والمعلومات
+        temperature=0.0,                          # 0.0 تمنع الهلوسة والـتأليف تماماً وتجبره على الحقائق الثابتة
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3.3-70b-versatile"     # تم استبدال النموذج الملغي بالنموذج العملاق الأحدث والمستقر حالياً
+        model_name="llama-3.3-70b-versatile"     
     )
 
 llm = init_groq_llm()
@@ -240,7 +223,7 @@ elif audio_file:
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="المتحدث يتحدث باللغة العربية الفصحى أو العامية. يرجى كتابة ما يقوله بدقة إملائية تامة وبدون أي مقدمات.",
+                    prompt="المتحدث يتحدث باللغة العربية. يرجى كتابة ما يقوله بدقة إملائية تامة وبدون أي مقدمات.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -254,13 +237,13 @@ if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     
-    pdf_context = "لا توجد مستندات مرفوعة حالياً."
+    pdf_context = ""
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
-            retrieved_docs = vector_store.similarity_search(final_query, k=3)
+            retrieved_docs = vector_store.similarity_search(final_query, k=2)
             if retrieved_docs:
-                pdf_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+                pdf_context = "\n".join([doc.page_content for doc in retrieved_docs])
         except Exception:
             pass
 
@@ -268,24 +251,28 @@ if final_query != "":
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
+    # تهيئة التوجيهات الصارمة لمنع اختراع الحقائق الرياضية والتاريخية والسياسية
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت مساعد ذكي تفاعلي، دقيق للغاية وعالمي يُدعى (صوتك AI). "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية وبأسلوب رصين وموثوق بنسبة 100%. "
-            "التزم التزاماً صارماً بالحقائق والأسماء والشخصيات التاريخية والرياضية الحقيقية (مثل لاعبين وأندية كرة القدم الحقيقية، والمناصب السياسية الفعلية للأشخاص). "
-            "ممنوع تماماً اختراع أو تأليف أو تخمين أسماء أو خلط الحروف والإملاء. "
-            "تجنب تماماً كتابة مقدمات مثل 'الإجابة:' أو 'الرد:' في رسالتك."
+            "أنت (صوتك AI)، مساعد ذكي فائق الدقة والأمان والمعرفة. "
+            "مهمتك الإجابة على استفسارات المستخدم باللغة العربية الفصحى بشكل مباشر ورصين.\n\n"
+            "⚠️ قواعد صارمة وحاسمة:\n"
+            "1. ممنوع تماماً اختراع أو تخمين أسماء لاعبين، أندية، سياسيين، أو أحداث تاريخية. التزم بالحقائق الواقعية 100%.\n"
+            "2. إذا سألك المستخدم عن معلومات عامة (مثل كرة القدم الحالية أو التاريخ) ولم تكن متأكداً من المعلومة الواقعية الحقيقية الحالية بنسبة 100%، قل: 'المعذرة، لا أملك تفاصيل دقيقة ومؤكدة حول هذا الموضوع حالياً' ولا تقم بالتأليف أبداً.\n"
+            "3. لا تبدأ إجابتك أبداً بكلمات مثل 'الإجابة:' أو 'الرد:'. ابدأ نص الإجابة مباشرة.\n"
+            "4. اعتمد على سياق الملفات المرفوعة فقط إذا كان السؤال يتعلق بها. وإذا كان السؤال عاماً، أجب وفقاً للحقائق العالمية المثبتة والواقعية.\n\n"
+            "سياق الملفات المرفوعة (إن وُجدت):\n{pdf_context}"
         )),
-        ("user", "سجل المحادثة الأخيرة:\n{history}\n\nسؤال المستخدم الحالي: {query}")
+        ("user", "سجل الحوار السابق:\n{history}\n\nالسؤال الحالي للمستخدم: {query}")
     ])
     
-    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_query)
+    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context if pdf_context else "لا توجد ملفات مرفوعة.", history=history_context, query=final_query)
     
-    with st.spinner("🤖 جاري صياغة الرد..."):
+    with st.spinner("🤖 جاري صياغة الرد الفعلي..."):
         try:
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content.strip()
-        except Exception as e:
+        except Exception:
             ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
     
     save_user_message("ai", ai_response)
