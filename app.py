@@ -43,7 +43,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ OmniSearch Pro AI")
-st.caption("النسخة المؤسسية المستقرة والمحمية بالكامل")
+st.caption("النسخة المؤسسية المستقرة والمحمية بالكامل مع مصحح الأخطاء الإملائية")
 st.markdown("---")
 
 # 2. إدارة قاعدة بيانات الرسائل المحفوظة للمستخدم
@@ -108,7 +108,7 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", "")
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.3,
+        temperature=0.2, # تقليل درجة العشوائية ليكون أكثر دقة وثباتاً
         groq_api_key=GROQ_API_KEY,
         model_name="llama-3.1-8b-instant"
     )
@@ -163,17 +163,19 @@ col_audio, col_space = st.columns([1, 2])
 current_query = ""
 
 with col_audio:
+    # استخدام تفاعل صوتي محسن مع التحقق من الحجم
     audio_file = st.audio_input("اضغط للتحدث وسؤال المساعد")
 
 user_text_input = st.chat_input("أو اكتب سؤالك يدوياً هنا...")
 
-# معالجة المدخلات
+# معالجة المدخلات بدقة وحماية
 if user_text_input:
     current_query = user_text_input
 elif audio_file:
-    if audio_file.size != st.session_state.last_processed_audio_size:
+    # حماية من معالجة الملفات الصغيرة جداً التالفة الناتجة عن أخطاء المتصفح
+    if audio_file.size > 2000 and audio_file.size != st.session_state.last_processed_audio_size:
         st.session_state.last_processed_audio_size = audio_file.size
-        with st.spinner("🎙️ جاري معالجة صوتك بالعربية..."):
+        with st.spinner("🎙️ جاري فك وتصحيح الكلمات العربية..."):
             try:
                 client = Groq(api_key=GROQ_API_KEY)
                 temp_audio_path = os.path.join(USER_DIR, "temp_voice.wav")
@@ -184,15 +186,22 @@ elif audio_file:
                     transcription = client.audio.transcriptions.create(
                         file=(temp_audio_path, file.read()),
                         model="whisper-large-v3",
-                        language="ar",  # 🔥 هنا السر الفتاك! إجبار النظام على سماعك وفهمك باللغة العربية حصراً
+                        language="ar",
+                        # 🔥 توجيه النموذج لإصلاح الأخطاء الإملائية وسياق الكلام تلقائياً
+                        prompt="المتحدث يتكلم باللغة العربية والكنات العامية، قم بإصلاح الكلمات الإملائية المقطوعة أو الخاطئة تلقائياً واجعل الجملة مفهومة ومتناسقة وصحيحة.",
                         response_format="text"
                     )
-                current_query = str(transcription).strip()
+                text_result = str(transcription).strip()
+                
+                # تصفية النصوص العشوائية القصيرة جداً الناتجة عن تشويش المايك
+                if len(text_result) > 2:
+                    current_query = text_result
+                
                 if os.path.exists(temp_audio_path):
                     os.remove(temp_audio_path)
             except Exception as e:
                 current_query = ""
-                st.error("حدث خطأ في قراءة الصوت، جرب مجدداً.")
+                st.warning("تنبيه: تعذر التقاط الصوت بوضوح، يرجى المحاولة مرة أخرى أو الكتابة يدوياً.")
 
 # 7. إرسال الطلب ومعالجة الرد والنطق الفوري
 if current_query != "":
@@ -200,7 +209,7 @@ if current_query != "":
     st.session_state.chat_history.append({"role": "user", "text": current_query})
     
     # جلب السياق من الـ PDF
-    pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب بناءً على معلوماتك العامة السريعة."
+    pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب بناءً على معلوماتك العامة السريعة والكافية."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
@@ -216,9 +225,9 @@ if current_query != "":
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "You are OmniSearch Pro AI, a fast multi-lingual assistant.\n"
-            "Respond to the user naturally in Arabic since the input is forced to Arabic.\n"
-            "Keep the answer straight to the point and very concise (2 sentences maximum) so that it is suitable for instant text-to-speech presentation.\n\n"
+            "You are OmniSearch Pro AI, a professional multi-lingual assistant.\n"
+            "The user speaks Arabic. Understand the context even if there are slight transcription errors.\n"
+            "Provide a highly accurate, clean, and concise answer (2 sentences max) in clear Arabic.\n\n"
             "Context from uploaded PDFs:\n{pdf_context}"
         )),
         ("user", "Conversation Context:\n{history}\n\nQuestion: {query}")
@@ -231,18 +240,18 @@ if current_query != "":
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
         except Exception:
-            ai_response = "عذراً، يرجى المحاولة مرة أخرى خلال ثوانٍ معدودة."
+            ai_response = "عذراً، حصل ضغط مؤقت على السيرفر، يرجى إعادة المحاولة."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # 🔊 توليد النطق التلقائي للعربية
+    # 🔊 توليد النطق التلقائي المستقر
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
     window.speechSynthesis.cancel();
     var msg = new SpeechSynthesisUtterance('{clean_text}');
-    msg.lang = 'ar-SA';  // نطق الرد باللكنة العربية الفصحى دائماً
+    msg.lang = 'ar-SA';
     window.speechSynthesis.speak(msg);
     </script>
     """
