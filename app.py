@@ -7,6 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+import time
 
 # 1. إعدادات الواجهة المتطورة
 st.set_page_config(page_title="OmniSearch Enterprise AI", page_icon="🎙️", layout="wide")
@@ -88,7 +89,6 @@ def clear_user_data():
         cursor.execute("DELETE FROM messages")
         conn.commit()
         conn.close()
-    # مسح المستندات الخاصة بالمستخدم فقط
     if os.path.exists(USER_DB_DIR):
         import shutil
         shutil.rmtree(USER_DB_DIR)
@@ -99,14 +99,15 @@ init_user_db()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = load_user_chat()
 
-# 3. تهيئة محرك Groq للسرعة القصوى المميّزة
+# 3. تهيئة محرك Groq الاقتصادي السريع لتجنب الـ Rate Limit
 @st.cache_resource
 def init_groq_llm():
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
+    # تم التغيير لموديل instant فائق السرعة والأعلى في حدود الطلبات المجانية
     return ChatGroq(
         temperature=0.3,
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3.3-70b-versatile"
+        model_name="llama-3.1-8b-instant"
     )
 
 llm = init_groq_llm()
@@ -137,9 +138,8 @@ if process_button and uploaded_files:
             loader = PyPDFLoader(file_path)
             all_docs.extend(loader.load())
             
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
         final_chunks = text_splitter.split_documents(all_docs)
-        # حفظ الفهرسة داخل مجلد الـ DB المعزول التابع للمستخدم الحالي فقط
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
         st.sidebar.success("✅ الذاكرة الخاصة بك جاهزة ومؤمنة!")
 
@@ -159,7 +159,6 @@ col_audio, col_space = st.columns([1, 2])
 final_input = ""
 
 with col_audio:
-    # استخدام نظام المايكروفون القياسي والآمن والرسمي من Streamlit لتفادي أي انهيار أو تجميد
     audio_file = st.audio_input("قم بتسجيل سؤالك صوتياً")
 
 user_text_input = st.chat_input("أو اكتب سؤالك هنا بأي لغة (عربي، English، Français)...")
@@ -167,7 +166,6 @@ user_text_input = st.chat_input("أو اكتب سؤالك هنا بأي لغة (
 if user_text_input:
     final_input = user_text_input
 elif audio_file:
-    # عند استخدام المايكروفون المدمج الرسمي، نقوم بتحفيز الموديل لإجابة ذكية سريعة
     final_input = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بناءً على ملفاتي المرفوعة."
 
 # 7. التوليد والنطق الاحترافي متعدد اللغات
@@ -175,19 +173,20 @@ if final_input:
     save_user_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
-    # جلب البيانات من مستودع الـ PDF المعزول للمستخدم فقط
+    # جلب البيانات من مستودع الـ PDF المعزول للمخدم الحالي فقط
     pdf_context = "لا توجد ملفات مرفوعة في مساحتك الخاصة حالياً. أجب من خلال معرفتك العامة."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
-            retrieved_docs = vector_store.similarity_search(final_input, k=3)
+            retrieved_docs = vector_store.similarity_search(final_input, k=2)
             if retrieved_docs:
                 pdf_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
         except Exception:
             pass
 
+    # تحسين الذاكرة: نأخذ آخر رسالتين فقط لتوفير الرموز وتجنب الـ Rate Limit نهائياً
     history_context = ""
-    for msg in st.session_state.chat_history[-5:-1]:
+    for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
     prompt_template = ChatPromptTemplate.from_messages([
@@ -203,8 +202,12 @@ if final_input:
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_input)
     
     with st.spinner("🧠 Evaluating..."):
-        response_object = llm.invoke(formatted_prompt)
-        ai_response = response_object.content
+        try:
+            response_object = llm.invoke(formatted_prompt)
+            ai_response = response_object.content
+        except Exception as e:
+            # رسالة حماية ذكية في حال تخطي الحدود مجدداً
+            ai_response = "عذراً، تم استقبال طلبات كثيرة في نفس الدقيقة. يرجى الانتظار لحظة وإرسال سؤالك مجدداً وسأجيبك فوراً."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
@@ -215,7 +218,6 @@ if final_input:
     <script>
     window.speechSynthesis.cancel();
     var msg = new SpeechSynthesisUtterance('{clean_text}');
-    // الفحص التلقائي للغة لتحديد الصوت المناسب للنطق الفوري
     if('{clean_text}'.match(/[a-zA-Z]/)) {{
         msg.lang = '{clean_text}'.includes('Bonjour') || '{clean_text}'.includes('de') ? 'fr-FR' : 'en-US';
     }} else {{
