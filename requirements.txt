@@ -5,4 +5,5 @@ langchain-chroma
 langchain-groq
 groq
 pydub
-
+pypdf
+beautifulsoup4
