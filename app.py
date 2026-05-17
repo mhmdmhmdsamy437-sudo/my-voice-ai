@@ -99,11 +99,14 @@ init_user_db()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = load_user_chat()
 
+# تتبع آخر مدخل معالج لمنع التكرار اللانهائي عند تحديث الصفحة
+if "last_processed_input" not in st.session_state:
+    st.session_state.last_processed_input = ""
+
 # 3. تهيئة محرك Groq الاقتصادي السريع لتجنب الـ Rate Limit
 @st.cache_resource
 def init_groq_llm():
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-    # تم التغيير لموديل instant فائق السرعة والأعلى في حدود الطلبات المجانية
     return ChatGroq(
         temperature=0.3,
         groq_api_key=GROQ_API_KEY,
@@ -124,6 +127,7 @@ with st.sidebar:
     if st.button("🗑️ مسح بياناتي وملفاتي بالكامل", use_container_width=True):
         clear_user_data()
         st.session_state.chat_history = []
+        st.session_state.last_processed_input = ""
         st.success("تم مسح مساحتك الخاصة بنجاح!")
         time.sleep(1)
         st.rerun()
@@ -166,14 +170,21 @@ user_text_input = st.chat_input("أو اكتب سؤالك هنا بأي لغة (
 if user_text_input:
     final_input = user_text_input
 elif audio_file:
-    final_input = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بناءً على ملفاتي المرفوعة."
+    # استخدام اسم الملف الصوتي أو حجمه كمُعرّف فريد لمنع معالجة نفس التسجيل مرتين عند التحديث تلقائياً
+    audio_id = f"audio_{audio_file.size}"
+    if st.session_state.last_processed_input != audio_id:
+        final_input = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بناءً على ملفاتي المرفوعة."
+        st.session_state.last_processed_input = audio_id
 
-# 7. التوليد والنطق الاحترافي متعدد اللغات
-if final_input:
+# 7. التوليد والنطق الاحترافي متعدد اللغات دون تكرار
+if final_input and (user_text_input or (audio_file and final_input != "")):
+    if user_text_input:
+        st.session_state.last_processed_input = user_text_input
+
     save_user_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
-    # جلب البيانات من مستودع الـ PDF المعزول للمخدم الحالي فقط
+    # جلب البيانات من مستودع الـ PDF المعزول للمستخدم الحالي فقط
     pdf_context = "لا توجد ملفات مرفوعة في مساحتك الخاصة حالياً. أجب من خلال معرفتك العامة."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
@@ -184,7 +195,7 @@ if final_input:
         except Exception:
             pass
 
-    # تحسين الذاكرة: نأخذ آخر رسالتين فقط لتوفير الرموز وتجنب الـ Rate Limit نهائياً
+    # تحسين الذاكرة: نأخذ آخر رسالتين لتوفير الرموز ومنع الحظر مجدداً
     history_context = ""
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
@@ -206,13 +217,12 @@ if final_input:
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
         except Exception as e:
-            # رسالة حماية ذكية في حال تخطي الحدود مجدداً
             ai_response = "عذراً، تم استقبال طلبات كثيرة في نفس الدقيقة. يرجى الانتظار لحظة وإرسال سؤالك مجدداً وسأجيبك فوراً."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # 🔊 النطق التلقائي الذكي المتوافق مع كل اللغات في المتصفح فوراً
+    # 🔊 النطق التلقائي الفوري دون إحداث حلقة تكرار
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
