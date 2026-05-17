@@ -2,17 +2,16 @@ import os
 import sqlite3
 import uuid
 import streamlit as st
+import time  # تم إضافة الاستدعاء هنا لإصلاح الخطأ تماماً
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-import time
 
-# 1. إعدادات الواجهة المتطورة
+# 1. إعدادات الواجهة والتهيئة الأمنية للمستخدم
 st.set_page_config(page_title="OmniSearch Enterprise AI", page_icon="🎙️", layout="wide")
 
-# تأمين نظام الهوية الفريدة لكل مستخدم لمنع تداخل المحادثات والملفات
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
 
@@ -24,7 +23,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تنسيق الشات الاحترافي المتجاوب مع الهواتف والكمبيوتر
+# تنسيق الشات بشكل مرئي أنيق لمنع التداخل
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -43,10 +42,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ OmniSearch Pro AI")
-st.caption("النسخة المؤسسية الآمنة - عزل كامل للبيانات والمستندات لكل مستخدم")
+st.caption("النسخة المؤسسية المستقرة والمحمية بالكامل")
 st.markdown("---")
 
-# 2. إدارة قاعدة بيانات المحادثات المعزولة (SQLite لكل مستخدم)
+# 2. إدارة قاعدة بيانات الرسائل المحفوظة للمييزين
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -99,11 +98,10 @@ init_user_db()
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = load_user_chat()
 
-# تتبع آخر مدخل معالج لمنع التكرار اللانهائي عند تحديث الصفحة
-if "last_processed_input" not in st.session_state:
-    st.session_state.last_processed_input = ""
+if "last_processed_audio_size" not in st.session_state:
+    st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك Groq الاقتصادي السريع لتجنب الـ Rate Limit
+# 3. تهيئة نموذج الذكاء الاصطناعي السريع
 @st.cache_resource
 def init_groq_llm():
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
@@ -115,25 +113,25 @@ def init_groq_llm():
 
 llm = init_groq_llm()
 
-# 4. إدارة المستندات السرية والمعزولة في القائمة الجانبية
+# 4. لوحة التحكم الجانبية للمستندات
 with st.sidebar:
-    st.markdown("### 📁 مساحتك السرية المستقلة")
-    st.info(f"مُعرّف الجلسة الآمن: `User-{st.session_state.user_id[:8]}`")
+    st.markdown("### 📁 إدارة ملفات الـ PDF الخاصة بك")
+    st.info(f"مُعرّف الحساب الحالي: `User-{st.session_state.user_id[:8]}`")
     
-    uploaded_files = st.file_uploader("ارفع ملفات الـ PDF (خاصة بك فقط):", type=["pdf"], accept_multiple_files=True)
-    process_button = st.button("تحديث وتحليل مستنداتي 🔄", use_container_width=True)
+    uploaded_files = st.file_uploader("ارفع الملفات هنا:", type=["pdf"], accept_multiple_files=True)
+    process_button = st.button("تحديث وفهرسة الملفات 🔄", use_container_width=True)
     
     st.markdown("---")
-    if st.button("🗑️ مسح بياناتي وملفاتي بالكامل", use_container_width=True):
+    if st.button("🗑️ مسح أرشيف المحادثات والملفات", use_container_width=True):
         clear_user_data()
         st.session_state.chat_history = []
-        st.session_state.last_processed_input = ""
-        st.success("تم مسح مساحتك الخاصة بنجاح!")
+        st.session_state.last_processed_audio_size = 0
+        st.success("تم تصفير البيئة بنجاح!")
         time.sleep(1)
         st.rerun()
 
 if process_button and uploaded_files:
-    with st.spinner("جاري تحليل وفهرسة مستنداتك في مستودعك الخاص الآمن..."):
+    with st.spinner("جاري استخلاص النصوص وحفظها آمنة..."):
         all_docs = []
         for uploaded_file in uploaded_files:
             file_path = os.path.join(USER_DOCS_DIR, uploaded_file.name)
@@ -145,9 +143,9 @@ if process_button and uploaded_files:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
         final_chunks = text_splitter.split_documents(all_docs)
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
-        st.sidebar.success("✅ الذاكرة الخاصة بك جاهزة ومؤمنة!")
+        st.sidebar.success("✅ تم تحديث الذاكرة بنجاح!")
 
-# 5. عرض صندوق المحادثات الآمن
+# 5. عرض صندوق المحادثة
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 for message in st.session_state.chat_history:
     if message["role"] == "user":
@@ -156,73 +154,67 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>🤖 {message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. أدوات الإدخال الرسمية والمستقرة (صوت وكتابة)
+# 6. أدوات الإدخال الفورية
 st.markdown("### 🎙️ أدوات الإدخال الفورية")
 col_audio, col_space = st.columns([1, 2])
 
-final_input = ""
+current_query = ""
 
 with col_audio:
-    audio_file = st.audio_input("قم بتسجيل سؤالك صوتياً")
+    audio_file = st.audio_input("اضغط للتحدث وسؤال المساعد")
 
-user_text_input = st.chat_input("أو اكتب سؤالك هنا بأي لغة (عربي، English، Français)...")
+user_text_input = st.chat_input("أو اكتب سؤالك يدوياً هنا...")
 
 if user_text_input:
-    final_input = user_text_input
+    current_query = user_text_input
 elif audio_file:
-    # استخدام اسم الملف الصوتي أو حجمه كمُعرّف فريد لمنع معالجة نفس التسجيل مرتين عند التحديث تلقائياً
-    audio_id = f"audio_{audio_file.size}"
-    if st.session_state.last_processed_input != audio_id:
-        final_input = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بناءً على ملفاتي المرفوعة."
-        st.session_state.last_processed_input = audio_id
+    if audio_file.size != st.session_state.last_processed_audio_size:
+        current_query = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بالرد عليها بناءً على مستنداتي المرفوعة."
+        st.session_state.last_processed_audio_size = audio_file.size
 
-# 7. التوليد والنطق الاحترافي متعدد اللغات دون تكرار
-if final_input and (user_text_input or (audio_file and final_input != "")):
-    if user_text_input:
-        st.session_state.last_processed_input = user_text_input
-
-    save_user_message("user", final_input)
-    st.session_state.chat_history.append({"role": "user", "text": final_input})
+# 7. إرسال الطلب ومعالجة الرد والنطق الفوري
+if current_query:
+    save_user_message("user", current_query)
+    st.session_state.chat_history.append({"role": "user", "text": current_query})
     
-    # جلب البيانات من مستودع الـ PDF المعزول للمستخدم الحالي فقط
-    pdf_context = "لا توجد ملفات مرفوعة في مساحتك الخاصة حالياً. أجب من خلال معرفتك العامة."
+    # جلب السياق من الـ PDF
+    pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب بناءً على معلوماتك العامة السريعة."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
-            retrieved_docs = vector_store.similarity_search(final_input, k=2)
+            retrieved_docs = vector_store.similarity_search(current_query, k=2)
             if retrieved_docs:
                 pdf_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
         except Exception:
             pass
 
-    # تحسين الذاكرة: نأخذ آخر رسالتين لتوفير الرموز ومنع الحظر مجدداً
     history_context = ""
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "You are OmniSearch Pro AI, a secure, elite multi-lingual assistant.\n"
-            "Automatically detect the user's language (Arabic, English, or French) and reply expertly using the exact same language.\n"
-            "Keep your responses professional, accurate, and concise (2-3 sentences max) to fit fluid voice synthesis reading.\n\n"
-            "User's Private PDF Context:\n{pdf_context}"
+            "You are OmniSearch Pro AI, a fast multi-lingual assistant.\n"
+            "Detect the user's language automatically and reply with the same language perfectly.\n"
+            "Keep the answer straight to the point and very concise (2 sentences maximum) so that it is suitable for instant text-to-speech presentation.\n\n"
+            "Context from uploaded PDFs:\n{pdf_context}"
         )),
-        ("user", "Session History:\n{history}\n\nCurrent Input: {query}")
+        ("user", "Conversation Context:\n{history}\n\nQuestion: {query}")
     ])
     
-    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_input)
+    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=current_query)
     
-    with st.spinner("🧠 Evaluating..."):
+    with st.spinner("🤖 تفكير..."):
         try:
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
-        except Exception as e:
-            ai_response = "عذراً، تم استقبال طلبات كثيرة في نفس الدقيقة. يرجى الانتظار لحظة وإرسال سؤالك مجدداً وسأجيبك فوراً."
+        except Exception:
+            ai_response = "عذراً، يرجى المحاولة مرة أخرى خلال ثوانٍ معدودة."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # 🔊 النطق التلقائي الفوري دون إحداث حلقة تكرار
+    # 🔊 توليد النطق التلقائي متعدد اللغات
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
