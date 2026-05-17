@@ -6,7 +6,7 @@ import time
 import io
 import urllib.request
 import urllib.parse
-from bs4 import BeautifulSoup
+import re  # استخدام التعبيرات النمطية المدمجة كبديل لـ bs4
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -14,7 +14,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
 
-# 1. تهيئة وإعداد واجهة المستخدم الذكية
+# 1. تهيئة وإعداد واجهة المستخدم
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -31,7 +31,6 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تنسيق واجهة العرض لمنع التداخل على الهواتف
 st.markdown("""
     <style>
     .stApp { background-color: #111827 !important; color: #f3f4f6 !important; }
@@ -51,24 +50,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("النسخة النهائية المستقرة: اتصال مباشر بالإنترنت + دعم كامل للهجات")
+st.caption("نسخة الحل السريع: تعمل مباشرة دون الحاجة لمكتبات خارجية للبحث")
 
-# دالة برمجية للبحث المباشر في الويب دون حظر لضمان جلب حقائق اليوم
+# دالة بحث نظيفة تعتمد على مكتبات بايثون القياسية لتجنب خطأ ModuleNotFoundError
 def fetch_live_web_data(query):
     try:
         encoded_query = urllib.parse.quote(query)
+        # استخدام واجهة بحث خفيفة لاستخراج النصوص مباشرة
         url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         with urllib.request.urlopen(req, timeout=6) as response:
-            soup = BeautifulSoup(response.read().decode('utf-8'), 'html.parser')
-            snippets = [snippets.get_text() for snippets in soup.find_all('a', class_='result__snippet')[:3]]
-            if snippets:
-                return "\n".join(snippets)
+            html_content = response.read().decode('utf-8')
+            # استخراج النصوص التقريبية باستخدام التعبيرات النمطية المدمجة بدلاً من bs4
+            snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)<\/a>', html_content, re.DOTALL)
+            clean_snippets = []
+            for snip in snippets[:3]:
+                clean_text = re.sub(r'<[^>]+>', '', snip).strip()
+                clean_snippets.append(clean_text)
+            if clean_snippets:
+                return "\n".join(clean_snippets)
     except Exception:
         pass
-    return "لا توجد نتائج بحث مباشرة متوفرة."
+    return "لا توجد نتائج بحث مباشرة متوفرة حالياً."
 
-# 2. لوحة التحكم
+# 2. لوحة التحكم وإدارة المستندات
 with st.expander("⚙️ لوحة التحكم وإدارة المستندات"):
     enable_tts = st.toggle("تفعيل الرد الصوتي التلقائي 🔊", value=True)
     st.markdown("---")
@@ -140,9 +145,9 @@ def display_chat():
 
 display_chat()
 
-# 4. أدوات الإدخال المحمية ضد الكلمات العشوائية الفارغة
+# 4. أدوات الإدخال
 st.markdown("### 🎙️ أدوات الإدخال")
-audio_file = st.audio_input("تحدث الآن بلهجتك الدارجة المعتادة:", key=f"audio_input_{st.session_state.audio_session_key}")
+audio_file = st.audio_input("تحدث الآن بلهجتك الطبيعية المعتادة:", key=f"audio_input_{st.session_state.audio_session_key}")
 user_text_input = st.chat_input("أو اكتب سؤالك هنا يدوياً...")
 
 final_query = ""
@@ -154,10 +159,9 @@ elif audio_file:
         audio_bytes = audio_file.read()
         audio_size = len(audio_bytes)
         
-        # تجاهل الصوت القصير جداً أو المتكرر لمنع أخطاء التخريف الإملائي
         if audio_size > 7000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري تصفية نبرة الصوت وتفسير اللهجة المحكية..."):
+            with st.spinner("🎙️ جاري تصفية نبرة الصوت وتفسير الكلام..."):
                 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
                 client = Groq(api_key=GROQ_API_KEY)
                 
@@ -168,26 +172,24 @@ elif audio_file:
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="مساء الخير، أين يلعب ميسي، كيف الحال، وش أخبارك، شو عامل. المتحدث ينطق بلهجة عربية عامية مفهومة.",
+                    prompt="مساء الخير، أين يلعب ميسي، كيف الحال، وش أخبارك. المتحدث ينطق بلهجة عربية عامية مفهومة.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
-                # فلترة الكلمات الوهمية الناتجة عن الهواء أو التقطيع
-                if len(captured_text) > 2 and "زار غير" not in captured_text and "نساء الخير" not in captured_text:
+                if len(captured_text) > 2:
                     final_query = captured_text
                     
             st.session_state.audio_session_key = str(uuid.uuid4())[:8]
     except Exception:
         pass
 
-# 5. معالجة وتوليد الرد بالاتصال الحقيقي المباشر بالإنترنت
+# 5. توليد الرد بالاستعانة بالإنترنت
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     display_chat()
     
-    # استدعاء دالة البحث الحي عبر الويب غصباً عن ذاكرة الموديل القديمة
-    with st.spinner("🌐 جاري البحث في شبكة الإنترنت لجلب الحقائق الحالية..."):
+    with st.spinner("🌐 جاري البحث الفوري في شبكة الإنترنت لجلب الحقائق الحالية..."):
         live_web_context = fetch_live_web_data(final_query)
 
     pdf_context = ""
@@ -204,7 +206,6 @@ if final_query != "":
     for msg in st.session_state.chat_history[-2:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
-    # بناء ملقن نظام صارم يجبر الموديل على تجاهل معلوماته القديمة والاعتماد على بحث الويب
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت مساعد ذكي وموسوعي متصل مباشرة بالإنترنت.\n"
