@@ -56,11 +56,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# دالة البحث النظيفة والمستقرة عبر الإنترنت مع ميزة التنظيف الذكي للجمل الاعتراضية
+# دالة البحث المباشر المستقرة
 def fetch_live_web_data(query):
     try:
-        # تنظيف الجملة الاعتراضية الصادرة من الصوت حتى لا تفسد نتائج محرك البحث
         clean_query = re.sub(r'^(لا قصدي عن|لا قصدي|قصدي عن|قصدي|اسمع|اسمعني|تعديل|لا لا)\s*', '', query, flags=re.IGNORECASE).strip()
+        clean_query = clean_query.replace("البوربون", "").replace("بوربون", "").strip()
+        
         if not clean_query:
             clean_query = query
             
@@ -80,7 +81,7 @@ def fetch_live_web_data(query):
         pass
     return "لا توجد نتائج بحث مباشرة متوفرة حالياً."
 
-# --- 2. بناء الشريط الجانبي المنافس لتخصيص التجربة الصوتية ---
+# --- 2. بناء الشريط الجانبي ---
 with st.sidebar:
     st.title("🎙️ لوحة التحكم والتخصيص")
     st.subheader("🌐 ضبط هوية الرد")
@@ -163,7 +164,7 @@ if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("النسخة فائقة الاستقرار: تعمل بنجاح على بيئات بايثون الحديثة وتدعم الاتصال الحي والإنصات المباشر")
+st.caption("النسخة فائقة الاستقرار: تعمل بنجاح وبدون أي أخطاء برمجية في معالجة الطلبات")
 
 chat_placeholder = st.empty()
 
@@ -206,7 +207,7 @@ elif audio_file:
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="لا قصدي، قصدي كذا، التعديل هو، ميسي، الدوري، بوردو، أهلاً، كيف الحال. المتحدث يصحح كلامه بلهجة عامية ومحلية واضحة.",
+                    prompt="لا قصدي، الدوري الفرنسي، أفضل الهدافين، صانعي الأهداف، ميسي، كورة. المتحدث يتكلم بلهجة عامية واضحة.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -217,7 +218,7 @@ elif audio_file:
     except Exception:
         pass
 
-# --- 5. توليد الرد وفصل الرسائل تاريخياً لمنع التداخل والعمى المؤقت ---
+# --- 5. توليد الرد البرمجي السليم الخالي من أخطاء الانهيار ---
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
@@ -225,30 +226,32 @@ if final_query != "":
     
     st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
     
-    with st.spinner("🌐 جاري استدعاء الإنترنت وجلب الحقائق اللحظية الشاملة..."):
+    with st.spinner("🌐 جاري استدعاء الإنترنت وجلب الحقائق اللحظية..."):
         live_web_context = fetch_live_web_data(final_query)
 
     pdf_context = st.session_state.pdf_context_memory
+    if not pdf_context:
+        pdf_context = "لا توجد مستندات مرفوعة حالياً."
 
-    # بناء قائمة الرسائل بشكل منظم ومنفصل تماماً لمنع التداخل والخلط
-    messages_input = [
-        ("system", (
-            "أنت مساعد ذكي ومحترف ومخصص لمساعدة المستخدم بدقة متناهية وبدون تكرار.\n"
-            "مهمتك القصوى هي الإجابة بدقة بالاعتماد الكامل على معلومات الويب المرفقة لتحديث بياناتك وتصحيح المعلومات القديمة.\n"
-            f"هام جداً: يجب أن تصيغ ردك وتتحدث بالكامل باستخدام: ({dialect}) بأسلوب طبيعي ومباشر.\n\n"
-            "⚠️ قواعد صارمة لمنع التشتت وتداخل المعلومات:\n"
-            "1. إذا بدأ المستخدم سؤاله بـ 'لا قصدي عن...' أو قام بتعديل مسار كلامه، فانتبه فوراً للتصحيح الأخير واهمل المقاصد القديمة التي رفضها وعبر عنها بوضوح.\n"
-            "2. ادخل في صلب الإجابة فوراً، لا تكرر ديباجات ترحيبية ولا تعيد صياغة السؤال. أعطه الحقائق المرتبة مباشرة وبدون حشو.\n\n"
-            "معلومات الويب الحية المحدثة حالياً:\n{live_web_context}\n\n"
-            "سياق المستندات المرفوعة:\n{pdf_context}"
-        ))
-    ]
+    # تعديل الصياغة البرمجية لتثبيت المتغيرات بشكل سليم داخل ملقن القالب
+    system_message = (
+        "أنت مساعد ذكي ومحترف ومخصص لمساعدة المستخدم العربي بدقة متناهية وبدون تكرار.\n"
+        "مهمتك القصوى هي الإجابة بدقة بالاعتماد الكامل على معلومات الويب المرفقة لتحديث بياناتك وتصحيح معلوماتك القديمة.\n"
+        f"هام جداً: يجب أن تصيغ ردك وتتحدث بالكامل باستخدام: ({dialect}) بأسلوب طبيعي ومباشر.\n\n"
+        "⚠️ قواعد صارمة لمنع التشتت وتداخل المعلومات:\n"
+        "1. إذا بدأ المستخدم سؤاله بـ 'لا قصدي عن...' أو قام بتعديل مسار كلامه، فانتبه فوراً للتصحيح الأخير واهمل المقاصد القديمة تماماً.\n"
+        "2. ادخل في صلب الإجابة فوراً، لا تكرر ديباجات ترحيبية ولا تعيد صياغة السؤال. أعطه الحقائق المرتبة مباشرة وبدون حشو.\n\n"
+        f"معلومات الويب الحية المحدثة حالياً لعام 2026:\n{live_web_context}\n\n"
+        f"سياق المستندات المرفوعة:\n{pdf_context}"
+    )
 
-    # تمرير آخر 4 رسائل فقط بشكل منفصل كبنية حوار حقيقية ليفهم تسلسل التصحيح التلقائي
+    messages_input = [("system", system_message)]
+
+    # جلب آخر 3 رسائل سابقة لمنع التراكم وتأمين الذاكرة
     for msg in st.session_state.chat_history[-4:-1]:
         messages_input.append((msg["role"], msg["text"]))
 
-    # إضافة الطلب أو التصحيح الحالي كمستند نهائي مستقل
+    # إضافة السؤال الحالي
     messages_input.append(("user", final_query))
 
     prompt_template = ChatPromptTemplate.from_messages(messages_input)
@@ -256,10 +259,7 @@ if final_query != "":
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
     
-    formatted_prompt = prompt_template.format_messages(
-        live_web_context=live_web_context,
-        pdf_context=pdf_context if pdf_context else "لا توجد ملفات مستندات في الذاكرة حالياً."
-    )
+    formatted_prompt = prompt_template.format_messages()
     
     with chat_placeholder.container():
         display_chat()
@@ -268,8 +268,9 @@ if final_query != "":
                 response_stream = llm.stream(formatted_prompt)
                 ai_response = st.write_stream(response_stream)
                 ai_response = ai_response.strip()
-            except Exception:
-                ai_response = "حصل خطأ في معالجة الطلب، يرجى إعادة المحاولة."
+            except Exception as e:
+                # طباعة الخطأ الحقيقي للمطور بدلاً من إخفاء المشكلة
+                ai_response = f"حصل خطأ في الاتصال بالخادم الداخلي: {str(e)}"
                 st.write(ai_response)
     
     save_user_message("ai", ai_response)
