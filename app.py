@@ -156,15 +156,15 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الأساسي
+# 3. تهيئة محرك الذكاء الاصطناعي الأساسي والأقوى لمنع الأخطاء والهلوسة
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.6, 
+        temperature=0.2,                  # تقليل الحرارة لضمان الالتزام بالحقائق والدقة المطلقة
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3.1-8b-instant"
+        model_name="llama-3-70b-8192"     # ترقية للموديل العملاق ذو الـ 70 مليار بارامتر لمنع الأخطاء المعرفية الإملائية
     )
 
 llm = init_groq_llm()
@@ -270,8 +270,9 @@ if final_query != "":
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت مساعد ذكي تفاعلي وسريع يُدعى (صوتك AI). "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب طبيعي ومفهوم تماماً مثل البشر. "
+            "أنت مساعد ذكي تفاعلي، دقيق للغاية وسريع يُدعى (صوتك AI). "
+            "أجب على سؤال المستخدم مباشرة باللغة العربية وبأسلوب طبيعي، رصين، وصحيح إملائياً ومعرفياً بنسبة 100%. "
+            "التزم بالحقائق والأسماء والشخصيات الحقيقية تماماً وتجنب اختراع أو تخمين أي تفاصيل غير واقعية. "
             "تجنب كتابة كلمات مثل 'الإجابة:' أو 'الرد:' في بداية رسالتك. "
             "إذا كان السؤال بسيطاً (مثل التحية)، أجب باختصار ولطف وبدون إطالة غير مبررة.\n\n"
             "السياق المتاح من الملفات المرفوعة:\n{pdf_context}"
