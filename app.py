@@ -4,7 +4,8 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_ollama import OllamaEmbeddings
+# التعديل 1: استخدام HuggingFace بدلاً من Ollama للعمل سحابياً بدون مشاكل
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -85,18 +86,20 @@ if "chat_history" not in st.session_state:
 if "last_input" not in st.session_state:
     st.session_state.last_input = ""
 
-# 3. إعداد الموديلات وأداة البحث سحابياً (معدل للحماية)
+# 3. إعداد الموديلات وأداة البحث سحابياً (معدل للحماية والتوافق السحابي)
 @st.cache_resource
 def init_models():
-    embeddings = OllamaEmbeddings(model="llama3")
+    # التعديل 2: موديل التضمين السحابي الخفيف والمجاني من HuggingFace ليعمل بكفاءة أونلاين
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
     # جلب مفتاح الـ API بشكل آمن من خيارات الحماية السحابية لمنع الاختراق
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     
+    # التعديل 3: تحديث اسم الموديل ليعمل على أحدث موديلات Groq المتاحة حالياً وضمان استقراره
     llm = ChatGroq(
         temperature=0.4,
         groq_api_key=GROQ_API_KEY,
-        model_name="llama-3.1-8b-instant"
+        model_name="llama-3.3-70b-versatile"
     )
     search_tool = DuckDuckGoSearchRun()
     return embeddings, llm, search_tool
@@ -155,11 +158,12 @@ if user_query:
 elif audio_file:
     with st.spinner("🧠 جاري تحويل صوتك لنص..."):
         try:
+            # التعديل 4: معالجة الملف الصوتي المرفوع من المتصفح مباشرة دون استدعاء المايك المحلي الخاص بـ PyAudio
             recognizer = sr.Recognizer()
             with sr.AudioFile(audio_file) as source:
                 audio_data = recognizer.record(source)
                 final_input = recognizer.recognize_google(audio_data, language="ar-SA")
-        except Exception:
+        except Exception as e:
             st.error("لم يتم التقاط الصوت بوضوح، أعد المحاولة قريباً من المايك.")
 
 # 7. معالجة الطلبات واستدعاء محركات البحث الفوري
