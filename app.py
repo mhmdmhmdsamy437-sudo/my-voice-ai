@@ -9,15 +9,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.tools import DuckDuckGoSearchRun  # أداة للبحث في الإنترنت
+from langchain_community.tools import DuckDuckGoSearchRun  # أداة ربط الإنترنت الفورية
 from groq import Groq 
 
-# 1. إعدادات الصفحة الأساسية
+# 1. إعدادات الواجهة المستقرة
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
 
+# توليد مفتاح ديناميكي للميكروفون لتنظيف الذاكرة المؤقتة للمتصفح أولاً بأول
 if "audio_session_key" not in st.session_state:
     st.session_state.audio_session_key = str(uuid.uuid4())[:8]
 
@@ -29,7 +30,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تحسين التصميم لواجهة الموبايل لمنع أي تداخل
+# تحسين مظهر الواجهة بالكامل لتناسب شاشات الهواتف الذكية
 st.markdown("""
     <style>
     .stApp { background-color: #111827 !important; color: #f3f4f6 !important; }
@@ -50,9 +51,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("النسخة العالمية المحدثة: متصل بالإنترنت + يدعم جميع اللهجات العربية")
+st.caption("تحديث الأداء: معالجة ذكية للهجات العربية + اتصال حي وشامل بالإنترنت")
 
-# 2. لوحة التحكم العلوية الذكية
+# 2. لوحة التحكم وإدارة الملفات
 with st.expander("⚙️ لوحة التحكم وإدارة المستندات"):
     enable_tts = st.toggle("تفعيل الرد الصوتي التلقائي 🔊", value=True)
     st.markdown("---")
@@ -93,7 +94,7 @@ with st.expander("⚙️ لوحة التحكم وإدارة المستندات")
 
 st.markdown("---")
 
-# 3. سجل الحوار والرسائل
+# 3. إدارة قاعدة بيانات الرسائل المحلية
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -142,9 +143,9 @@ def display_chat():
 
 display_chat()
 
-# 4. أدوات الإدخال مع تهيئة الميكروفون لفهم جميع اللهجات العربية
+# 4. أدوات الإدخال المتطورة لمعالجة وفهم اللهجات الدارجة
 st.markdown("### 🎙️ أدوات الإدخال")
-audio_file = st.audio_input("تحدث الآن بأي لهجة تناسبك:", key=f"audio_input_{st.session_state.audio_session_key}")
+audio_file = st.audio_input("تحدث الآن بلهجتك الطبيعية المعتادة:", key=f"audio_input_{st.session_state.audio_session_key}")
 user_text_input = st.chat_input("أو اكتب سؤالك هنا يدوياً...")
 
 final_query = ""
@@ -156,22 +157,22 @@ elif audio_file:
         audio_bytes = audio_file.read()
         audio_size = len(audio_bytes)
         
-        # حظر المقاطع القصيرة جداً لمنع التكرار والأخطاء
-        if audio_size > 8000 and audio_size != st.session_state.last_processed_audio_size:
+        # تجنب معالجة الملفات الصوتية الفارغة أو القصيرة جداً لمنع التكرار
+        if audio_size > 6000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري تحليل نبرة الصوت وفهم اللهجة..."):
+            with st.spinner("🎙️ جاري تصفية الصوت والتعرف على الكلمات بدقة..."):
                 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
                 client = Groq(api_key=GROQ_API_KEY)
                 
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
-                # هنا قمنا بتوسيع الـ Prompt ليشمل كافة اللهجات العربية بذكاء تفريغي كامل
+                # إعطاء ملقن اللهجات لـ Whisper لتفادي الأخطاء الإملائية والترجمات العشوائية
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="كيفك، وش أخبارك، شنو فيه، زول، يا زول، إيه الأخبار، شو عم بصير. يفهم اللهجة الخليجية، السودانية، المصرية، الشامية والمغاربية ويحولها لنص فصيح دقيق.",
+                    prompt="أين يلعب ميسي الآن؟ من هو رئيس فرنسا؟ كيف حالك يا زول؟ وش أخبارك؟ شنو صاير؟ المتحدث يستخدم كلمات عربية عامية ومحلية دارجة بوضوح.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -182,21 +183,21 @@ elif audio_file:
     except Exception:
         pass
 
-# 5. محرك البحث والذكاء الاصطناعي المتصل بالإنترنت لعلم 2026
+# 5. جلب إجابات الذكاء الاصطناعي بالاستعانة بمحرك البحث الحي
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     display_chat()
     
-    # أ) جلب المعلومات الحديثة من الإنترنت تلقائياً
-    with st.spinner("🌐 جاري الاتصال بالإنترنت والبحث عن أحدث المعلومات..."):
+    # أ) استدعاء الإنترنت الفوري لجلب الحقائق الجديدة والمحدثة
+    with st.spinner("🌐 جاري البحث في شبكة الإنترنت لجلب أحدث معلومة موثوقة..."):
         try:
             search = DuckDuckGoSearchRun()
             internet_context = search.run(final_query)
         except Exception:
-            internet_context = "لم نتمكن من الاتصال بمحرك البحث حالياً."
+            internet_context = "تعذر جلب بيانات حية من الإنترنت في هذه اللحظة."
 
-    # ب) جلب بيانات المستندات إن وجدت
+    # ب) جلب بيانات سياق ملفات الـ PDF إن وجدت
     pdf_context = ""
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
@@ -211,12 +212,12 @@ if final_query != "":
     for msg in st.session_state.chat_history[-2:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
-    # تحديث الـ System Prompt ليعتمد على نتائج بحث الإنترنت لعام 2026
+    # صياغة موجه النظام الجديد ليعتمد كلياً على معلومات محرك البحث
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت مساعد ذكي وموسوعي متصل مباشرة بشبكة الإنترنت العالمية لعام 2026.\n"
-            "مهمتك هي الإجابة بدقة تامة بالاعتماد على معلومات الإنترنت الحديثة المرفقة أدناه، وتصحيح أي معلومات قديمة لدى المستخدم (مثل انتقالات اللاعبين الحالية، الرؤساء الحاليين، إلخ).\n\n"
-            "معلومات الإنترنت اللحظية والحديثة:\n{internet_context}\n\n"
+            "أنت مساعد ذكي وموسوعي متصل مباشرة بالإنترنت.\n"
+            "مهمتك الرئيسية هي الإجابة بدقة بالاعتماد على سياق الإنترنت المرفق لتصحيح أي معلومات قديمة أو خاطئة (مثل الانتقالات الحالية للاعبي كرة القدم، الرؤساء الحاليين، إلخ).\n\n"
+            "سياق البحث الحي من الإنترنت:\n{internet_context}\n\n"
             "سياق المستندات المرفوعة:\n{pdf_context}"
         )),
         ("user", "الحوار السابق:\n{history}\n\nالسؤال الحالي المطلوب الإجابة عليه بدقة: {query}")
@@ -226,9 +227,9 @@ if final_query != "":
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
     
     formatted_prompt = prompt_template.format_messages(
-        internet_context=internet_context, 
-        pdf_context=pdf_context if pdf_context else "لا توجد مستندات.", 
-        history=history_context, 
+        internet_context=internet_context,
+        pdf_context=pdf_context if pdf_context else "لا توجد مستندات مرفوعة.",
+        history=history_context,
         query=final_query
     )
     
@@ -240,7 +241,7 @@ if final_query != "":
                 ai_response = st.write_stream(response_stream)
                 ai_response = ai_response.strip()
             except Exception:
-                ai_response = "يرجى المحاولة مرة أخرى."
+                ai_response = "يرجى التحاولة مرة أخرى."
                 st.write(ai_response)
     
     save_user_message("ai", ai_response)
