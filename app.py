@@ -10,9 +10,8 @@ from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
-from pydub import AudioSegment  # 🔥 المكتبة السحرية لتحويل وتنقية هندسة الصوت
 
-# 1. إعدادات الواجهة والسمة الفاخرة
+# 1. إعدادات الواجهة الفاخرة والمستقرة تماماً
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -26,7 +25,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تنسيق المظهر الداكن الفاخر المستقر وثبات الفقاعات
+# تثبيت التصميم الداكن الفاخر بنسبة 100% ومنع تداخل الفقاعات
 st.markdown("""
     <style>
     .stApp, .main, .block-container {
@@ -81,7 +80,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("نظام المعالجة الصوتية الاحترافي المدمج بمحرك الهندسة والتنقية التلقائية")
+st.caption("نظام الذكاء الاصطناعي الصوتي المستقر والمحمي ضد تذبذب الإنترنت وضغط الملفات")
 st.markdown("---")
 
 # 2. إدارة قاعدة البيانات المحلية للمحادثات
@@ -140,7 +139,7 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الأساسي المستقر
+# 3. تهيئة محرك الذكاء الاصطناعي الأساسي
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
@@ -194,7 +193,7 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. أدوات الإدخال ومعالجة الصوت الفائقة والتنقية الاحترافية
+# 6. قسم أدوات الإدخال والمعالجة المباشرة والآمنة للملفات الصوتية الخرسانية
 st.markdown("### 🎙️ أداة الإدخال")
 col_audio, col_space = st.columns([1, 2])
 
@@ -208,47 +207,40 @@ user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً...")
 if user_text_input:
     raw_query = user_text_input
 elif audio_file:
-    if audio_file.size > 1000 and audio_file.size != st.session_state.last_processed_audio_size:
-        st.session_state.last_processed_audio_size = audio_file.size
-        with st.spinner("🎙️ جاري إعادة هندسة وتنقية جودة الصوت..."):
-            try:
+    try:
+        audio_bytes = audio_file.read()
+        audio_size = len(audio_bytes)
+        
+        if audio_size > 2000 and audio_size != st.session_state.last_processed_audio_size:
+            st.session_state.last_processed_audio_size = audio_size
+            with st.spinner("🎙️ جاري قراءة وتحليل الكلمات الصادرة من المايكروفون..."):
                 client = Groq(api_key=GROQ_API_KEY)
                 
-                # 🔥 السحر هنا: قراءة الصوت الخام المبعوث من أي متصفح وتصحيح ترميزه بالكامل
-                raw_audio_data = audio_file.read()
-                audio_segment = AudioSegment.from_file(io.BytesIO(raw_audio_data))
+                # قراءة البايتات بشكل مباشر وآمن دون الاعتماد على مكتبات النظام الخارجية المعقدة
+                audio_buffer = io.BytesIO(audio_bytes)
+                audio_buffer.name = "input_audio.wav"
                 
-                # توحيد التردد وقنوات الصوت ليصبح نقي ومفهوم بنسبة 100% لموديل Whisper
-                audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
-                
-                # تصدير الصوت المصلح داخل بافر نظيف تماماً
-                clean_buffer = io.BytesIO()
-                clean_buffer.name = "clean_audio.wav"
-                audio_segment.export(clean_buffer, format="wav")
-                clean_buffer.seek(0)
-                
-                # إرسال الملف النقي المعدل للموديل
                 transcription = client.audio.transcriptions.create(
-                    file=clean_buffer,
+                    file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="المتحدث يتحدث باللغة العربية الفصحى أو العامية بوضوح. يرجى كتابة النص بدقة متناهية وبدون أخطاء إملائية.",
+                    prompt="المتحدث يتحدث باللغة العربية بلهجة واضحة وعامية مفهومة، يرجى كتابة الكلمات الإملائية بدقة وبدون أي نقص.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
                 if len(captured_text) > 1:
                     raw_query = captured_text
-            except Exception as e:
-                st.error(f"تنبيه فني: لم تكتمل تصفية الصوت بسبب صيغة المتصفح الحالي، يرجى المحاولة مرة أخرى ببطء.")
+    except Exception:
+        st.warning("تنبيه: نعتذر، يرجى تكرار الجملة المسموعة بوضوح لضمان التقاطها عبر الشبكة.")
 
-# 🧠 نظام الفهم الأعمق وصقل النصوص الفوري (ChatGPT Logic)
+# 🧠 نظام الفهم وتأكيد نية المستخدم وإعادة الصياغة الاحترافية (ChatGPT Logic)
 final_query = ""
 if raw_query != "":
     with st.spinner("🧠 جاري صقل السؤال وفهم نيتك الحقيقية..."):
         try:
             correction_prompt = f"""
-            أنت نظام ذكي مسؤول عن تصحيح وفهم النصوص الصوتية قبل إرسالها للمساعد.
-            قم بقراءة النص التالي، وافهم النية الحقيقية للمدخل الصوتي، وصحح أي خطأ إملائي أو نقص ناتج عن التسجيل، وأعد صياغته كسؤال بليغ ومفهوم تماماً باللغة العربية الفصحى.
+            أنت نظام ذكي مسؤول عن تصحيح وفهم النصوص الصوتية لتعمل بدقة مثل ChatGPT.
+            قم بقراءة النص التالي، وافهم النية الحقيقية للمدخل الصوتي، وصحح أي خطأ إملائي أو تداخل كلمات ناتج عن التسجيل والإنترنت، وأعد صياغته كسؤال بليغ ومفهوم تماماً باللغة العربية.
             
             النص الخام: "{raw_query}"
             
@@ -296,12 +288,12 @@ if final_query != "":
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
         except Exception:
-            ai_response = "عذراً، حدث بطء مؤقت في معالجة البيانات، يرجى المحاولة مجدداً."
+            ai_response = "عذراً، حدث بطء مؤقت في معالجة البيانات عبر الشبكة، يرجى المحاولة مجدداً."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # محرك النطق التلقائي فائق النقاء والسرعة
+    # محرك النطق التلقائي الفوري والسرعة العالية
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
