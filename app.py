@@ -25,34 +25,40 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تثبيت التصميم الداكن الفاخر بنسبة 100% وإخفاء أدوات المطورين مع إبقاء زر القائمة الجانبية للهواتف
+# حقن CSS احترافي لإخفاء أدوات جيت هاب وصناعة زر عائم حقيقي للقائمة الجانبية على الموبايل
 st.markdown("""
     <style>
-    /* إخفاء شريط جيت هاب والترقية العلوي فقط */
+    /* إخفاء شريط المطورين بالكامل */
     header[data-testid="stHeader"] {
-        background: transparent !important;
-    }
-    header[data-testid="stHeader"] > div:first-child {
         visibility: hidden !important;
+        height: 0px !important;
     }
     .stAppDeployButton {
         display: none !important;
     }
     
-    /* ضمان ظهور سهم فتح القائمة الجانبية على الهواتف بشكل لائق */
+    /* إجبار زر القائمة الجانبية الأصلي على الظهور كأيقونة عائمة فاخرة في الهواتف */
     button[data-testid="sidebarCollapsedControl"] {
-        color: #f3f4f6 !important;
-        background-color: #1f2937 !important;
-        border-radius: 8px !important;
-        margin-top: 10px !important;
-        margin-left: 10px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+        position: fixed !important;
+        top: 15px !important;
+        left: 15px !important;
+        z-index: 999999 !important;
+        background-color: #2563eb !important;
+        color: white !important;
+        border-radius: 50% !important;
+        width: 45px !important;
+        height: 45px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
+        border: none !important;
     }
     
     .stApp, .main, .block-container {
         background-color: #111827 !important;
         color: #f3f4f6 !important;
-        padding-top: 15px !important;
+        padding-top: 60px !important; /* مسافة لعدم التداخل مع الزر العائم */
     }
     .chat-container {
         display: flex;
@@ -251,11 +257,12 @@ elif audio_file:
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
+                # تحديث ملقن المعالجة (Prompt) لضمان فهم التحيات والكلمات العربية بوضوح تام دون دمج خاطئ
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="المتحدث يتحدث باللغة العربية. يرجى كتابة ما يقوله بدقة إملائية تامة وبدون أي مقدمات.",
+                    prompt="مرحباً، مساء الخير، السلام عليكم ورحمة الله وبركاته، كيف حالك. المتحدث يتحدث العربية بوضوح إملائي كامل وبدون أخطاء تفكيك الحروف.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -280,7 +287,6 @@ if final_query != "":
         except Exception:
             pass
 
-    # تقليص الذاكرة اللحظية إلى الحوار المباشر الفعلي لمنع التكرار والهلوسة الصوتية
     history_context = ""
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
@@ -288,9 +294,9 @@ if final_query != "":
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت (صوتك AI)، مساعد ذكي موسوعي تفاعلي، دقيق للغاية وعالمي. "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية الفاصحة وبأسلوب رصين وموثوق.\n\n"
+            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
             "📋 تعليمات التشغيل الحازمة:\n"
-            "1. إذا كان سؤال المستخدم عاماً (مثل: معلومات رياضية، سياسية، تاريخية، أو طبية عامة)، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
+            "1. إذا كان سؤال المستخدم عاماً، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
             "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه، اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
             "3. لا تكتب أبداً في بداية الرد مقدمات مكررة مثل 'الإجابة:' أو 'الرد:'. ابدأ صلب موضوع إجابتك فوراً.\n\n"
             "سياق الملفات المرفوعة:\n{pdf_context}"
@@ -315,7 +321,6 @@ if final_query != "":
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # نطق الرد الصوتي تلقائياً فقط إن كان زر التحكم (enable_tts) مفعّلاً
     if enable_tts:
         clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
         js_universal_tts = f"""
@@ -328,7 +333,6 @@ if final_query != "":
         """
         st.components.v1.html(js_universal_tts, height=0)
     
-    # تفريغ كلي لمنع التكرار التلقائي في المتصفح
     final_query = ""
     st.rerun()
 
