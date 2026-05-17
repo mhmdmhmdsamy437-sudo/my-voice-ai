@@ -2,12 +2,13 @@ import os
 import sqlite3
 import uuid
 import streamlit as st
-import time  # تم إضافة الاستدعاء هنا لإصلاح الخطأ تماماً
+import time
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from groq import Groq # استدعاء المكتبة الرسمية لمعالجة الصوت
 
 # 1. إعدادات الواجهة والتهيئة الأمنية للمستخدم
 st.set_page_config(page_title="OmniSearch Enterprise AI", page_icon="🎙️", layout="wide")
@@ -23,7 +24,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تنسيق الشات بشكل مرئي أنيق لمنع التداخل
+# تنسيق الشات بشكل مرئي أنيق ومستقر
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -45,7 +46,7 @@ st.title("🎙️ OmniSearch Pro AI")
 st.caption("النسخة المؤسسية المستقرة والمحمية بالكامل")
 st.markdown("---")
 
-# 2. إدارة قاعدة بيانات الرسائل المحفوظة للمييزين
+# 2. إدارة قاعدة بيانات الرسائل المحفوظة للمستخدم
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -101,10 +102,11 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة نموذج الذكاء الاصطناعي السريع
+# 3. تهيئة مفتاح ونموذج الذكاء الاصطناعي
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
+
 @st.cache_resource
 def init_groq_llm():
-    GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     return ChatGroq(
         temperature=0.3,
         groq_api_key=GROQ_API_KEY,
@@ -145,7 +147,7 @@ if process_button and uploaded_files:
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
         st.sidebar.success("✅ تم تحديث الذاكرة بنجاح!")
 
-# 5. عرض صندوق المحادثة
+# 5. عرض صندوق المحادثة المستقر
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 for message in st.session_state.chat_history:
     if message["role"] == "user":
@@ -154,7 +156,7 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>🤖 {message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. أدوات الإدخال الفورية
+# 6. أدوات الإدخال الفورية والمباشرة
 st.markdown("### 🎙️ أدوات الإدخال الفورية")
 col_audio, col_space = st.columns([1, 2])
 
@@ -165,26 +167,50 @@ with col_audio:
 
 user_text_input = st.chat_input("أو اكتب سؤالك يدوياً هنا...")
 
+# معالجة المدخلات
 if user_text_input:
     current_query = user_text_input
 elif audio_file:
     if audio_file.size != st.session_state.last_processed_audio_size:
-        current_query = "مرحباً، لقد أرسلت لك رسالة صوتية، يرجى مساعدتي بالرد عليها بناءً على مستنداتي المرفوعة."
         st.session_state.last_processed_audio_size = audio_file.size
+        with st.spinner("🎙️ جاري ترجمة صوتك وفهم الكلام..."):
+            try:
+                # إرسال الملف الصوتي الحقيقي لـ Groq Whisper لترجمته فوراً لنص
+                client = Groq(api_key=GROQ_API_KEY)
+                # حفظ الملف مؤقتاً لإرساله
+                temp_audio_path = os.path.join(USER_DIR, "temp_voice.wav")
+                with open(temp_audio_path, "wb") as f:
+                    f.write(audio_file.getbuffer())
+                
+                with open(temp_audio_path, "rb") as file:
+                    transcription = client.audio.transcriptions.create(
+                        file=(temp_audio_path, file.read()),
+                        model="whisper-large-v3",
+                        response_format="text"
+                    )
+                current_query = str(transcription).strip()
+                # تنظيف الملف المؤقت
+                if os.path.exists(temp_audio_path):
+                    os.remove(temp_audio_path)
+            except Exception as e:
+                current_query = ""
+                st.error("حدث خطأ أثناء معالجة الصوت، يرجى المحاولة مرة أخرى.")
 
 # 7. إرسال الطلب ومعالجة الرد والنطق الفوري
-if current_query:
+if current_query != "":
     save_user_message("user", current_query)
     st.session_state.chat_history.append({"role": "user", "text": current_query})
     
     # جلب السياق من الـ PDF
     pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب بناءً على معلوماتك العامة السريعة."
+    has_pdf = False
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
             retrieved_docs = vector_store.similarity_search(current_query, k=2)
             if retrieved_docs:
                 pdf_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+                has_pdf = True
         except Exception:
             pass
 
@@ -195,7 +221,7 @@ if current_query:
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "You are OmniSearch Pro AI, a fast multi-lingual assistant.\n"
-            "Detect the user's language automatically and reply with the same language perfectly.\n"
+            "Detect the user's language automatically (Arabic, English, or French) and reply with the same language perfectly.\n"
             "Keep the answer straight to the point and very concise (2 sentences maximum) so that it is suitable for instant text-to-speech presentation.\n\n"
             "Context from uploaded PDFs:\n{pdf_context}"
         )),
