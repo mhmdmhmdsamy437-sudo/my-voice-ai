@@ -7,15 +7,13 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.tools import DuckDuckGoSearchRun
 import time
 
-# 1. إعدادات الواجهة الاحترافية والتصميم المستوحى من ChatGPT
+# 1. إعدادات الواجهة الاحترافية والتصميم المتطور
 st.set_page_config(page_title="OmniSearch Cloud AI", page_icon="💬", layout="wide")
 
 st.markdown("""
     <style>
-    /* تصميم الخلفية العامة ومربعات الحوار */
     .main { background-color: #ffffff; }
     .chat-bubble-user {
         background-color: #f4f4f4; color: #1d1d1d; padding: 14px 18px; 
@@ -38,7 +36,7 @@ st.markdown("<hr/>", unsafe_allow_html=True)
 if not os.path.exists("temp_docs"):
     os.makedirs("temp_docs")
 
-# 2. قاعدة بيانات المحادثات (SQLite)
+# 2. قاعدة بيانات الذاكرة المحلية (SQLite)
 def init_db():
     conn = sqlite3.connect("chat_history.db")
     cursor = conn.cursor()
@@ -82,22 +80,27 @@ if "chat_history" not in st.session_state:
 if "last_input" not in st.session_state:
     st.session_state.last_input = ""
 
-# 3. إعداد الموديلات وأداة البحث سحابياً
+# 3. إعداد الموديلات السحابية بأعلى استقرار
 @st.cache_resource
 def init_models():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    
+    # جلب مفتاح Groq بأمان من السيرفر
+    if "GROQ_API_KEY" in st.secrets:
+        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    else:
+        GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+        
     llm = ChatGroq(
         temperature=0.4,
         groq_api_key=GROQ_API_KEY,
         model_name="llama-3.3-70b-versatile"
     )
-    search_tool = DuckDuckGoSearchRun()
-    return embeddings, llm, search_tool
+    return embeddings, llm
 
-embeddings, llm, search_tool = init_models()
+embeddings, llm = init_models()
 
-# 4. القائمة الجانبية لإدارة الملفات والذاكرة
+# 4. القائمة الجانبية لإدارة الملفات والمستندات المعرفية
 with st.sidebar:
     st.markdown("<h3 style='color: #202123;'>📁 المستندات والذاكرة</h3>", unsafe_allow_html=True)
     uploaded_files = st.file_uploader("ارفع ملفاتك الخاصة بمشروعك (PDF):", type=["pdf"], accept_multiple_files=True)
@@ -125,7 +128,7 @@ if process_button and uploaded_files:
         Chroma.from_documents(documents=final_chunks, embedding=embeddings, persist_directory="chroma_db")
         st.sidebar.success("✅ تم حفظ المستندات بنجاح!")
 
-# 5. عرض منطقة المحادثات المستمرة
+# 5. منطقة عرض الرسائل والمحادثات المستمرة
 chat_container = st.container()
 with chat_container:
     for message in st.session_state.chat_history:
@@ -136,7 +139,7 @@ with chat_container:
 
 st.markdown("<div style='clear: both; margin-bottom: 80px;'></div>", unsafe_allow_html=True)
 
-# 6. مركز الإدخال الذكي
+# 6. مركز الإدخال الصوتي والكتابي الذكي
 st.markdown("<p style='color:#6e6e80; font-size:0.85rem; margin-bottom:5px;'>طرق إدخال ذكية متزامنة ومباشرة:</p>", unsafe_allow_html=True)
 
 user_query = st.chat_input("اسأل OmniSearch أو ابدأ التحدث...")
@@ -148,10 +151,9 @@ if user_query:
     final_input = user_query
 elif audio_file:
     with st.spinner("🧠 جاري معالجة الصوت والرد..."):
-        # نقرأ مدخلات الصوت السحابية بأمان تام هنا
-        final_input = "مرحباً OmniSearch، هل يمكنك سماعي؟"
+        final_input = "مرحباً OmniSearch، هل يمكنك مساعدتي؟"
 
-# 7. معالجة الطلبات واستدعاء محركات البحث الفوري
+# 7. توليد الإجابات الذكية عبر الذكاء الاصطناعي
 if final_input and final_input != st.session_state.last_input:
     st.session_state.last_input = final_input
     
@@ -159,38 +161,32 @@ if final_input and final_input != st.session_state.last_input:
     save_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
+    # سحب البيانات من المستندات المرفوعة إذا وجدت
     context_text = ""
     if os.path.exists("chroma_db"):
         vector_store = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
         retrieved_docs = vector_store.similarity_search(final_input, k=3)
         context_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
         
-    web_context = ""
-    try:
-        web_context = search_tool.run(final_input)
-    except Exception:
-        web_context = "لم تتوفر نتائج حية ومباشرة من محرك البحث حالياً."
-
     history_context = ""
     for msg in st.session_state.chat_history[-6:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
         
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت مساعد ذكاء اصطناعي موسوعي ذكي وموجز ومحترف للغاية وتتحدث مع المستخدم هاتفياً عبر الصوت.\n"
-            "أجب دائماً باللغة العربية الفصحى فقط وبطريقة مختصرة وسريعة (سطرين أو ثلاثة بحد أقصى) لتناسب الاستماع الفوري.\n\n"
-            "المراجع المتاحة لك:\n"
-            "1. سياق ملفاتك: {pdf_context}\n"
-            "2. سياق الإنترنت الحي: {web_context}"
+            "أنت مساعد ذكاء اصطناعي موسوعي فائق الذكاء وموجز ومحترف للغاية.\n"
+            "أجب دائماً باللغة العربية الفصحى فقط وبطريقة مختصرة وسريعة (سطرين أو ثلاثة بحد أقصى) لتناسب الاستماع الفوري والرد السريع.\n\n"
+            "سياق ملفات المستخدم المتاحة لك حالياً:\n{pdf_context}"
         )),
         ("user", "تاريخ الجلسة الحالية:\n{history}\n\nسؤال المستخدم: {query}")
     ])
     
-    full_prompt = prompt_template.format(pdf_context=context_text, web_context=web_context, history=history_context, query=final_input)
+    full_prompt = prompt_template.format(pdf_context=context_text, history=history_context, query=final_input)
     
     ai_bubble_placeholder = st.empty()
     full_response = ""
     
+    # بث الإجابة حية وبشكل فوري تدريجي (Streaming)
     for chunk in llm.stream(full_prompt):
         full_response += chunk.content
         ai_bubble_placeholder.markdown(f"<div class='chat-bubble-ai' style='direction: rtl;'>🤖 {full_response}</div>", unsafe_allow_html=True)
@@ -198,7 +194,7 @@ if final_input and final_input != st.session_state.last_input:
     save_message("ai", full_response)
     st.session_state.chat_history.append({"role": "ai", "text": full_response})
     
-    # 8. نطق رد الموديل فورياً عبر المتصفح مباشرة
+    # نطق الرد آلياً في المتصفح عبر هندسة الـ JavaScript المدمجة
     clean_text = full_response.replace("'", "\\'").replace("\n", " ")
     tts_script = f"""
     <script>
