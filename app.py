@@ -4,7 +4,7 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_groq import ChatGroq, GroqEmbeddings
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 import time
 
@@ -79,7 +79,7 @@ if "chat_history" not in st.session_state:
 if "last_input" not in st.session_state:
     st.session_state.last_input = ""
 
-# 3. إعداد الموديلات السحابية عبر Groq بالكامل (سريع جداً وخفيف)
+# 3. إعداد الموديلات السحابية عبر Groq والموديل المدمج
 @st.cache_resource
 def init_models():
     if "GROQ_API_KEY" in st.secrets:
@@ -87,11 +87,8 @@ def init_models():
     else:
         GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
         
-    # استخدام الـ Embeddings السحابية من Groq مباشرة لتجنب حظر السيرفر
-    embeddings = GroqEmbeddings(
-        model_name="llama3-8b-8192",
-        groq_api_key=GROQ_API_KEY
-    )
+    # نترك الـ embeddings لـ Chroma الافتراضي الخفيف جداً وبدون استدعاءات معقدة تفشل سحابياً
+    embeddings = None 
     
     llm = ChatGroq(
         temperature=0.4,
@@ -127,6 +124,7 @@ if process_button and uploaded_files:
             
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
         final_chunks = text_splitter.split_documents(all_docs)
+        # حفظ باستخدام الموديل التلقائي الخفيف لـ Chroma
         Chroma.from_documents(documents=final_chunks, embedding=embeddings, persist_directory="chroma_db")
         st.sidebar.success("✅ تم حفظ المستندات بنجاح!")
 
