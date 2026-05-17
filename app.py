@@ -4,8 +4,7 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_groq import ChatGroq
+from langchain_groq import ChatGroq, GroqEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 import time
 
@@ -30,7 +29,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h2 style='text-align: center; color: #202123; font-weight: 600;'>OmniSearch AI</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #6e6e80; font-size: 0.95rem; margin-top:-10px;'>نسخة متطورة متصلة بالإنترنت والملفات المعرفية</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #6e6e80; font-size: 0.95rem; margin-top:-10px;'>نسخة سحابية متطورة وسريعة الاستجابة</p>", unsafe_allow_html=True)
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 if not os.path.exists("temp_docs"):
@@ -80,17 +79,20 @@ if "chat_history" not in st.session_state:
 if "last_input" not in st.session_state:
     st.session_state.last_input = ""
 
-# 3. إعداد الموديلات السحابية بأعلى استقرار
+# 3. إعداد الموديلات السحابية عبر Groq بالكامل (سريع جداً وخفيف)
 @st.cache_resource
 def init_models():
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    
-    # جلب مفتاح Groq بأمان من السيرفر
     if "GROQ_API_KEY" in st.secrets:
         GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     else:
         GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
         
+    # استخدام الـ Embeddings السحابية من Groq مباشرة لتجنب حظر السيرفر
+    embeddings = GroqEmbeddings(
+        model_name="llama3-8b-8192",
+        groq_api_key=GROQ_API_KEY
+    )
+    
     llm = ChatGroq(
         temperature=0.4,
         groq_api_key=GROQ_API_KEY,
@@ -123,7 +125,7 @@ if process_button and uploaded_files:
             loader = PyPDFLoader(file_path)
             all_docs.extend(loader.load())
             
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
         final_chunks = text_splitter.split_documents(all_docs)
         Chroma.from_documents(documents=final_chunks, embedding=embeddings, persist_directory="chroma_db")
         st.sidebar.success("✅ تم حفظ المستندات بنجاح!")
@@ -161,7 +163,6 @@ if final_input and final_input != st.session_state.last_input:
     save_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     
-    # سحب البيانات من المستندات المرفوعة إذا وجدت
     context_text = ""
     if os.path.exists("chroma_db"):
         vector_store = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
@@ -186,7 +187,6 @@ if final_input and final_input != st.session_state.last_input:
     ai_bubble_placeholder = st.empty()
     full_response = ""
     
-    # بث الإجابة حية وبشكل فوري تدريجي (Streaming)
     for chunk in llm.stream(full_prompt):
         full_response += chunk.content
         ai_bubble_placeholder.markdown(f"<div class='chat-bubble-ai' style='direction: rtl;'>🤖 {full_response}</div>", unsafe_allow_html=True)
