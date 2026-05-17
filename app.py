@@ -25,7 +25,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تثبيت التصميم الداكن الفاخر بنسبة 100% ومنع تداخل الفقاعات
+# تثبيت التصميم الداكن الفاخر بنسبة 100% وإضافة كود النافذة المنبثقة للتثبيت كـ تطبيق
 st.markdown("""
     <style>
     .stApp, .main, .block-container {
@@ -78,6 +78,51 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# سحر التثبيت التلقائي الذكي للمستخدمين (PWA Notification Emulator)
+st.components.v1.html("""
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    if (!localStorage.getItem("pwa_prompt_dismissed")) {
+        setTimeout(function() {
+            var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            var installMessage = isIOS 
+                ? "لتبدو واجهة صوتك كتطبيق رسمي آمن: اضغط على زر 'مشاركة' (Share) ثم اختر 'إضافة إلى الشاشة الرئيسية' (Add to Home Screen) 📲" 
+                : "لتثبيت تطبيق (صوتك AI) بشكل رسمي وآمن وموثق على شاشة هاتفك، يرجى الضغط على الثلاث نقاط أعلى المتصفح واختيار 'تثبيت التطبيق' أو 'إضافة للشاشة الرئيسية' 🚀";
+            
+            var promptDiv = document.createElement("div");
+            promptDiv.style.position = "fixed";
+            promptDiv.style.bottom = "20px";
+            promptDiv.style.left = "50%";
+            promptDiv.style.transform = "translateX(-50%)";
+            promptDiv.style.backgroundColor = "#1f2937";
+            promptDiv.style.color = "#f3f4f6";
+            promptDiv.style.padding = "16px 20px";
+            promptDiv.style.borderRadius = "12px";
+            promptDiv.style.boxShadow = "0 10px 25px rgba(0,0,0,0.5)";
+            promptDiv.style.zIndex = "999999";
+            promptDiv.style.width = "90%";
+            promptDiv.style.maxWidth = "450px";
+            promptDiv.style.textAlign = "center";
+            promptDiv.style.border = "1px solid #374151";
+            promptDiv.style.fontFamily = "system-ui, sans-serif";
+            promptDiv.dir = "rtl";
+
+            promptDiv.innerHTML = "<p style='margin:0 0 10px 0; font-weight:bold; font-size:15px;'>🎙️ تثبيت تطبيق صوتك AI</p>" +
+                                  "<p style='margin:0 0 15px 0; font-size:13px; line-height:1.5;'>" + installMessage + "</p>" +
+                                  "<button id='close_pwa_btn' style='background-color:#2563eb; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;'>فهمت وموافق</button>";
+            
+            document.body.appendChild(promptDiv);
+            
+            document.getElementById("close_pwa_btn").addEventListener("click", function() {
+                promptDiv.style.display = "none";
+                localStorage.setItem("pwa_prompt_dismissed", "true");
+            });
+        }, 3000);
+    }
+});
+</script>
+""", height=0)
 
 st.title("🎙️ صوتك | Sawtak AI")
 st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية")
@@ -145,7 +190,7 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", "")
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.6,  # رفعنا الـ temperature قليلاً ليعطي ردوداً طبيعية وتفاعلية مثل البشر
+        temperature=0.6, 
         groq_api_key=GROQ_API_KEY,
         model_name="llama-3.1-8b-instant"
     )
@@ -237,7 +282,6 @@ if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     
-    # البحث الذكي في ملفات الـ PDF إن وجدت
     pdf_context = "لا توجد مستندات مرفوعة حالياً. أجب مباشرة بناءً على معرفتك العامة."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
@@ -248,12 +292,10 @@ if final_query != "":
         except Exception:
             pass
 
-    # جلب سياق المحادثة السابقة المباشر
     history_context = ""
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
-    # سيستم برومبت معدل ومحكم لمنع الإجابات الطويلة والغير منطقية
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت مساعد ذكي تفاعلي وسريع يُدعى (صوتك AI). "
@@ -277,7 +319,6 @@ if final_query != "":
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # محرك النطق التلقائي الخفيف والذكي
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
