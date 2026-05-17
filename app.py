@@ -11,7 +11,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
 
-# 1. إعدادات الواجهة الفاخرة والمستقرة تماماً
+# 1. إعدادات الواجهة الأساسية
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -25,10 +25,9 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# حقن CSS احترافي لإخفاء أدوات جيت هاب وصناعة زر عائم حقيقي للقائمة الجانبية على الموبايل
+# تحسين التصميم وإلغاء القائمة الجانبية المعيوبة لتعويضها بلوحة تحكم علوية مرنة
 st.markdown("""
     <style>
-    /* إخفاء شريط المطورين بالكامل */
     header[data-testid="stHeader"] {
         visibility: hidden !important;
         height: 0px !important;
@@ -36,36 +35,17 @@ st.markdown("""
     .stAppDeployButton {
         display: none !important;
     }
-    
-    /* إجبار زر القائمة الجانبية الأصلي على الظهور كأيقونة عائمة فاخرة في الهواتف */
-    button[data-testid="sidebarCollapsedControl"] {
-        position: fixed !important;
-        top: 15px !important;
-        left: 15px !important;
-        z-index: 999999 !important;
-        background-color: #2563eb !important;
-        color: white !important;
-        border-radius: 50% !important;
-        width: 45px !important;
-        height: 45px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
-        border: none !important;
-    }
-    
     .stApp, .main, .block-container {
         background-color: #111827 !important;
         color: #f3f4f6 !important;
-        padding-top: 60px !important; /* مسافة لعدم التداخل مع الزر العائم */
+        padding-top: 10px !important;
     }
     .chat-container {
         display: flex;
         flex-direction: column;
         gap: 20px;
         padding: 10px;
-        margin-bottom: 40px;
+        margin-bottom: 30px;
     }
     .chat-bubble-user {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -73,7 +53,7 @@ st.markdown("""
         padding: 14px 20px;
         border-radius: 20px 20px 4px 20px;
         align-self: flex-end;
-        max-width: 70%;
+        max-width: 85%;
         margin-left: auto;
         font-family: system-ui, -apple-system, sans-serif;
         text-align: right;
@@ -85,16 +65,19 @@ st.markdown("""
         padding: 16px 22px;
         border-radius: 20px 20px 20px 4px;
         align-self: flex-start;
-        max-width: 70%;
+        max-width: 85%;
         margin-right: auto;
         font-family: system-ui, -apple-system, sans-serif;
         text-align: right;
         border: 1px solid #374151;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
-    .stSidebar {
+    /* تحسين شكل صندوق الإعدادات المدمج */
+    .stExpander {
         background-color: #1f2937 !important;
-        border-right: 1px solid #374151;
+        border: 1px solid #374151 !important;
+        border-radius: 12px !important;
+        margin-bottom: 15px !important;
     }
     h1, h2, h3, p, span, label {
         color: #f3f4f6 !important;
@@ -108,21 +91,57 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية بجودة تدفق عالمية")
+st.caption("الجيل المستقر والمطور للمحادثات الصوتية الذكية")
+
+# 2. لوحة التحكم المدمجة (بديلة القائمة الجانبية المختفية) - تظهر دائماً للمستخدم بوضوح
+with st.expander("🛠️ لوحة التحكم: إدارة الصوت والمستندات المرفوعة"):
+    st.markdown("### ⚙️ إعدادات الصوت")
+    enable_tts = st.toggle("تفعيل النطق الصوتي التلقائي للردود 🔊", value=True)
+    
+    st.markdown("---")
+    st.markdown("### 📁 إدارة ملفات الـ PDF")
+    uploaded_files = st.file_uploader("اختر ملفات الـ PDF لرفعها وفهرستها:", type=["pdf"], accept_multiple_files=True)
+    process_button = st.button("تحديث الفهرس الذكي للبيانات 🔄", use_container_width=True)
+    
+    if process_button and uploaded_files:
+        with st.spinner("جاري معالجة وفهرسة المستندات..."):
+            all_docs = []
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join(USER_DOCS_DIR, uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                loader = PyPDFLoader(file_path)
+                all_docs.extend(loader.load())
+                
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
+            final_chunks = text_splitter.split_documents(all_docs)
+            Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
+            st.success("✅ تم الفهرسة وحفظ الملفات في ذاكرة المساعد بنجاح!")
+            
+    st.markdown("---")
+    if st.button("🗑️ مسح سجل المحادثة وإعادة تصفير التطبيق", use_container_width=True):
+        db_path = os.path.join(USER_DIR, "personal_chat.db")
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            conn.cursor().execute("DELETE FROM messages")
+            conn.commit()
+            conn.close()
+        if os.path.exists(USER_DB_DIR):
+            import shutil
+            shutil.rmtree(USER_DB_DIR)
+        st.session_state.chat_history = []
+        st.session_state.last_processed_audio_size = 0
+        st.success("تم التصفير بالكامل!")
+        time.sleep(1)
+        st.rerun()
+
 st.markdown("---")
 
-# 2. إدارة قاعدة البيانات المحلية للمحادثات
+# 3. إدارة قاعدة البيانات وسجل الرسائل
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            role TEXT,
-            text TEXT
-        )
-    """)
+    conn.cursor().execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, text TEXT)")
     conn.commit()
     conn.close()
 
@@ -139,25 +158,11 @@ def save_user_message(role, text):
     try:
         db_path = os.path.join(USER_DIR, "personal_chat.db")
         conn = sqlite3.connect(db_path, check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO messages (role, text) VALUES (?, ?)", (role, text))
+        conn.cursor().execute("INSERT INTO messages (role, text) VALUES (?, ?)", (role, text))
         conn.commit()
         conn.close()
     except Exception:
         pass
-
-def clear_user_data():
-    db_path = os.path.join(USER_DIR, "personal_chat.db")
-    if os.path.exists(db_path):
-        conn = sqlite3.connect(db_path, check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM messages")
-        conn.commit()
-        conn.close()
-    if os.path.exists(USER_DB_DIR):
-        import shutil
-        shutil.rmtree(USER_DB_DIR)
-        os.makedirs(USER_DB_DIR)
 
 init_user_db()
 
@@ -167,56 +172,7 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي بنسبة متزنة جداً
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-
-@st.cache_resource
-def init_groq_llm():
-    return ChatGroq(
-        temperature=0.1,                          
-        groq_api_key=GROQ_API_KEY,
-        model_name="llama-3.3-70b-versatile"     
-    )
-
-llm = init_groq_llm()
-
-# 4. إدارة المستندات والإعدادات (الـ Sidebar الجانبي)
-with st.sidebar:
-    st.markdown("### ⚙️ التحكم بالصوت")
-    enable_tts = st.toggle("تفعيل النطق الصوتي التلقائي 🔊", value=True)
-    
-    st.markdown("---")
-    st.markdown("### 📁 المستندات والملفات الذكية")
-    st.info(f"المستخدم: `Sawtak-{st.session_state.user_id[:6].upper()}`")
-    
-    uploaded_files = st.file_uploader("ارفع ملفات الـ PDF هنا:", type=["pdf"], accept_multiple_files=True)
-    process_button = st.button("تحديث الفهرس الذكي 🔄", use_container_width=True)
-    
-    st.markdown("---")
-    if st.button("🗑️ مسح السجل وإعادة التصفير", use_container_width=True):
-        clear_user_data()
-        st.session_state.chat_history = []
-        st.session_state.last_processed_audio_size = 0
-        st.success("تم مسح السجل والملفات بنجاح!")
-        time.sleep(1)
-        st.rerun()
-
-if process_button and uploaded_files:
-    with st.spinner("جاري معالجة المستندات وفهرستها..."):
-        all_docs = []
-        for uploaded_file in uploaded_files:
-            file_path = os.path.join(USER_DOCS_DIR, uploaded_file.name)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            loader = PyPDFLoader(file_path)
-            all_docs.extend(loader.load())
-            
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
-        final_chunks = text_splitter.split_documents(all_docs)
-        Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
-        st.sidebar.success("✅ تم الفهرسة بنجاح!")
-
-# 5. عرض ساحة المحادثة المستقرة
+# عرض واجهة المحادثة الأنيقة
 chat_placeholder = st.empty()
 
 def display_chat():
@@ -231,16 +187,12 @@ def display_chat():
 
 display_chat()
 
-# 6. قسم أدوات الإدخال والمعالجة
-st.markdown("### 🎙️ أداة الإدخال")
-col_audio, col_space = st.columns([1, 2])
+# 4. أدوات الإدخال والمعالجة المحمية
+st.markdown("### 🎙️ أداة الإدخال الصوتي")
+audio_file = st.audio_input("اضغط وتحدث وسجل استفسارك:")
+user_text_input = st.chat_input("أو اكتب سؤالك هنا يدوياً...")
 
 final_query = ""
-
-with col_audio:
-    audio_file = st.audio_input("تحدث الآن")
-
-user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً...")
 
 if user_text_input:
     final_query = user_text_input
@@ -249,29 +201,31 @@ elif audio_file:
         audio_bytes = audio_file.read()
         audio_size = len(audio_bytes)
         
+        # حماية صارمة لمنع التكرار التلقائي للمقطع الصوتي عند الـ Rerun
         if audio_size > 2000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري السماع وفهم النص..."):
+            with st.spinner("🎙️ جاري تحليل نبرة الصوت واستخراج النص..."):
+                GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
                 client = Groq(api_key=GROQ_API_KEY)
                 
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
-                # تحديث ملقن المعالجة (Prompt) لضمان فهم التحيات والكلمات العربية بوضوح تام دون دمج خاطئ
+                # تزويد الموديل بملقن فائق لمنع ترجمة التحيات بطريقة مغلوطة أو مفككة
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="مرحباً، مساء الخير، السلام عليكم ورحمة الله وبركاته، كيف حالك. المتحدث يتحدث العربية بوضوح إملائي كامل وبدون أخطاء تفكيك الحروف.",
+                    prompt="السلام عليكم، مساء الخير، من هو، ما هو. يرجى كتابة الكلمات بدقة فصحى وبدون تفكيك للحروف أو دمج خاطئ.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
-                if len(captured_text) > 1:
+                if len(captured_text) > 1 and "نساء الخير" not in captured_text:
                     final_query = captured_text
     except Exception:
-        st.warning("يرجى المحاولة مجدداً والتحدث بوضوح.")
+        pass
 
-# 7. معالجة الرد النهائي بنظام الذاكرة المتزنة والمحمية
+# 5. توليد الردود والذكاء الاصطناعي
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
@@ -287,35 +241,35 @@ if final_query != "":
         except Exception:
             pass
 
+    # تقليص الذاكرة الفورية جداً لمنع أي تداخلات أو هلوسة ناتجة عن التكرار
     history_context = ""
-    for msg in st.session_state.chat_history[-3:-1]:
+    for msg in st.session_state.chat_history[-2:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت (صوتك AI)، مساعد ذكي موسوعي تفاعلي، دقيق للغاية وعالمي. "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
-            "📋 تعليمات التشغيل الحازمة:\n"
-            "1. إذا كان سؤال المستخدم عاماً، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
-            "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه، اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
-            "3. لا تكتب أبداً في بداية الرد مقدمات مكررة مثل 'الإجابة:' أو 'الرد:'. ابدأ صلب موضوع إجابتك فوراً.\n\n"
-            "سياق الملفات المرفوعة:\n{pdf_context}"
+            "أنت مساعد ذكي وموسوعي دقيق للغاية.\n"
+            "أجب مباشرة باللغة العربية الفصحى وبشكل موثوق ومباشر وبدون مقدمات مكررة.\n\n"
+            "سياق المستندات المرفوعة:\n{pdf_context}"
         )),
-        ("user", "سجل الحوار السابق للرجوع إليه عند الحاجة:\n{history}\n\nسؤال المستخدم الحالي الآن: {query}")
+        ("user", "الحوار السابق:\n{history}\n\nالسؤال الحالي: {query}")
     ])
     
-    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context if pdf_context else "لا توجد مستندات مرفوعة حالياً.", history=history_context, query=final_query)
+    GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
+    llm = ChatGroq(temperature=0.1, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+    
+    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context if pdf_context else "لا توجد مستندات.", history=history_context, query=final_query)
     
     with chat_placeholder.container():
         display_chat()
-        with st.chat_message("assistant", avatar=None):
+        with st.chat_message("assistant"):
             st.markdown("<style>.stChatMessage { background-color: transparent !important; border:none !important; }</style>", unsafe_allow_html=True)
             try:
                 response_stream = llm.stream(formatted_prompt)
                 ai_response = st.write_stream(response_stream)
                 ai_response = ai_response.strip()
             except Exception:
-                ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
+                ai_response = "يرجى تكرار المحاولة مرة أخرى."
                 st.write(ai_response)
     
     save_user_message("ai", ai_response)
