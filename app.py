@@ -10,8 +10,9 @@ from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
+from pydub import AudioSegment  # 🔥 المكتبة السحرية لتحويل وتنقية هندسة الصوت
 
-# 1. إعدادات الواجهة الفاخرة والمستقرة تماماً
+# 1. إعدادات الواجهة والسمة الفاخرة
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -25,7 +26,7 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تثبيت التصميم الداكن الفاخر بنسبة 100% ومنع تداخل القوائم
+# تنسيق المظهر الداكن الفاخر المستقر وثبات الفقاعات
 st.markdown("""
     <style>
     .stApp, .main, .block-container {
@@ -80,7 +81,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("نظام الذكاء الاصطناعي الصوتي فائق الثبات والمحمي ضد تذبذب الإنترنت")
+st.caption("نظام المعالجة الصوتية الاحترافي المدمج بمحرك الهندسة والتنقية التلقائية")
 st.markdown("---")
 
 # 2. إدارة قاعدة البيانات المحلية للمحادثات
@@ -139,7 +140,7 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة محرك الذكاء الاصطناعي الأساسي
+# 3. تهيئة محرك الذكاء الاصطناعي الأساسي المستقر
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
@@ -184,7 +185,7 @@ if process_button and uploaded_files:
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
         st.sidebar.success("✅ تم الفهرسة بنجاح!")
 
-# 5. عرض ساحة المحادثة المستقرة والمنظمة
+# 5. عرض ساحة المحادثة
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 for message in st.session_state.chat_history:
     if message["role"] == "user":
@@ -193,7 +194,7 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. قسم أدوات الإدخال والتحقق الآمن من جودة وحجم الصوت المرسل عبر الإنترنت
+# 6. أدوات الإدخال ومعالجة الصوت الفائقة والتنقية الاحترافية
 st.markdown("### 🎙️ أداة الإدخال")
 col_audio, col_space = st.columns([1, 2])
 
@@ -207,41 +208,47 @@ user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً...")
 if user_text_input:
     raw_query = user_text_input
 elif audio_file:
-    # حماية فائقة: التحقق من أن حجم الملف منطقي وليس ناتجاً عن تقطع الإنترنت
-    try:
-        audio_bytes = audio_file.read()
-        audio_size = len(audio_bytes)
-        
-        if audio_size > 3000 and audio_size != st.session_state.last_processed_audio_size:
-            st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري تصفية الصوت ومعالجة النص عبر الشبكة..."):
+    if audio_file.size > 1000 and audio_file.size != st.session_state.last_processed_audio_size:
+        st.session_state.last_processed_audio_size = audio_file.size
+        with st.spinner("🎙️ جاري إعادة هندسة وتنقية جودة الصوت..."):
+            try:
                 client = Groq(api_key=GROQ_API_KEY)
                 
-                # استخدام حزمة BytesIO لضمان قراءة الملف صوتياً بشكل سليم بدون الاعتماد على ذاكرة المتصفح المتقطعة
-                buffer = io.BytesIO(audio_bytes)
-                buffer.name = "audio.wav"
+                # 🔥 السحر هنا: قراءة الصوت الخام المبعوث من أي متصفح وتصحيح ترميزه بالكامل
+                raw_audio_data = audio_file.read()
+                audio_segment = AudioSegment.from_file(io.BytesIO(raw_audio_data))
                 
+                # توحيد التردد وقنوات الصوت ليصبح نقي ومفهوم بنسبة 100% لموديل Whisper
+                audio_segment = audio_segment.set_frame_rate(16000).set_channels(1)
+                
+                # تصدير الصوت المصلح داخل بافر نظيف تماماً
+                clean_buffer = io.BytesIO()
+                clean_buffer.name = "clean_audio.wav"
+                audio_segment.export(clean_buffer, format="wav")
+                clean_buffer.seek(0)
+                
+                # إرسال الملف النقي المعدل للموديل
                 transcription = client.audio.transcriptions.create(
-                    file=buffer,
+                    file=clean_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="المتحدث يتحدث باللغة العربية بلهجة واضحة، يرجى كتابة الكلمات الإملائية بدقة وبدون أخطاء.",
+                    prompt="المتحدث يتحدث باللغة العربية الفصحى أو العامية بوضوح. يرجى كتابة النص بدقة متناهية وبدون أخطاء إملائية.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
                 if len(captured_text) > 1:
                     raw_query = captured_text
-    except Exception:
-        st.warning("تنبيه: يبدو أن اتصال الإنترنت تذبذب أثناء إرسال الصوت، يرجى المحاولة مرة أخرى بثبات.")
+            except Exception as e:
+                st.error(f"تنبيه فني: لم تكتمل تصفية الصوت بسبب صيغة المتصفح الحالي، يرجى المحاولة مرة أخرى ببطء.")
 
-# 🧠 نظام الفهم وإعادة صياغة السؤال العبقري (ChatGPT Logic)
+# 🧠 نظام الفهم الأعمق وصقل النصوص الفوري (ChatGPT Logic)
 final_query = ""
 if raw_query != "":
-    with st.spinner("🧠 جاري تحليل سياق وفهم نية السؤال..."):
+    with st.spinner("🧠 جاري صقل السؤال وفهم نيتك الحقيقية..."):
         try:
             correction_prompt = f"""
             أنت نظام ذكي مسؤول عن تصحيح وفهم النصوص الصوتية قبل إرسالها للمساعد.
-            قم بقراءة النص التالي، وافهم النية الحقيقية للمدخل الصوتي، وصحح أي خطأ إملائي أو نقص ناتج عن التسجيل والشبكة، وأعد صياغته كسؤال بليغ ومفهوم تماماً باللغة العربية.
+            قم بقراءة النص التالي، وافهم النية الحقيقية للمدخل الصوتي، وصحح أي خطأ إملائي أو نقص ناتج عن التسجيل، وأعد صياغته كسؤال بليغ ومفهوم تماماً باللغة العربية الفصحى.
             
             النص الخام: "{raw_query}"
             
@@ -289,7 +296,7 @@ if final_query != "":
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
         except Exception:
-            ai_response = "عذراً، حدث بطء مؤقت في معالجة البيانات عبر الشبكة، يرجى المحاولة مجدداً."
+            ai_response = "عذراً، حدث بطء مؤقت في معالجة البيانات، يرجى المحاولة مجدداً."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
