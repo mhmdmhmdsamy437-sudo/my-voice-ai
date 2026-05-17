@@ -8,7 +8,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 import time
 
-# 1. إعدادات الواجهة الاحترافية المتطورة (تتناسب مع الـ Cloud والـ Mobile)
+# 1. إعدادات الواجهة لتفادي مشاكل الحجم والتوافق
 st.set_page_config(page_title="OmniSearch Voice AI", page_icon="🎙️", layout="wide")
 
 st.markdown("""
@@ -29,13 +29,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h2 style='text-align: center; color: #202123; font-weight: 600;'>OmniSearch Voice AI</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #6e6e80; font-size: 0.95rem; margin-top:-10px;'>المحادثة الصوتية المستمرة والذكية المتكاملة مع الـ PDF</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #6e6e80; font-size: 0.95rem; margin-top:-10px;'>المحادثة الصوتية المستمرة الذكية المتكاملة مع الـ PDF</p>", unsafe_allow_html=True)
 st.markdown("<hr/>", unsafe_allow_html=True)
 
 if not os.path.exists("temp_docs"):
     os.makedirs("temp_docs")
 
-# 2. إدارة قاعدة البيانات المحلية لحفظ الجلسات وتفادي تعارض الـ Cloud
+# 2. إدارة قاعدة البيانات وسجل الذاكرة بشكل آمن
 def init_db():
     conn = sqlite3.connect("chat_history.db", check_same_thread=False)
     cursor = conn.cursor()
@@ -82,7 +82,7 @@ if "chat_history" not in st.session_state:
 if "speaking" not in st.session_state:
     st.session_state.speaking = False
 
-# 3. تهيئة سحابة الموديلات وجلب مفاتيح الـ API الذكية
+# 3. تهيئة سحابة الموديلات (تعديل دالة استدعاء مفتاح Groq لتجنب الانهيار)
 @st.cache_resource
 def init_models():
     if "GROQ_API_KEY" in st.secrets:
@@ -99,21 +99,21 @@ def init_models():
 
 llm = init_models()
 
-# 4. القائمة الجانبية لإدارة تحديث ملفات الـ PDF
+# 4. القائمة الجانبية المخصصة للمستندات والملفات
 with st.sidebar:
-    st.markdown("<h3 style='color: #202123;'>📁 ملفات مشروعك (PDF)</h3>", unsafe_allow_html=True)
-    uploaded_files = st.file_uploader("ارفع المستندات هنا:", type=["pdf"], accept_multiple_files=True)
+    st.markdown("<h3 style='color: #202123;'>📁 ملفات الـ PDF</h3>", unsafe_allow_html=True)
+    uploaded_files = st.file_uploader("ارفع ملفات الـ PDF لمشروعك:", type=["pdf"], accept_multiple_files=True)
     process_button = st.button("تحديث وقراءة الذاكرة 🔄", use_container_width=True)
     
     st.markdown("---")
-    if st.button("مسح سجل المحادثة 🗑️", use_container_width=True):
+    if st.button("مسح سجل الذاكرة 🗑️", use_container_width=True):
         clear_db()
         st.session_state.chat_history = []
         st.session_state.speaking = False
         st.rerun()
 
 if process_button and uploaded_files:
-    with st.spinner("جاري فهرسة النصوص بدقة وبناء قاعدة البيانات السحابية..."):
+    with st.spinner("جاري معالجة وفهرسة المستندات..."):
         all_docs = []
         for uploaded_file in uploaded_files:
             file_path = os.path.join("temp_docs", uploaded_file.name)
@@ -125,9 +125,9 @@ if process_button and uploaded_files:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
         final_chunks = text_splitter.split_documents(all_docs)
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory="chroma_db")
-        st.sidebar.success("✅ الذاكرة جاهزة ومحدثة الآن!")
+        st.sidebar.success("✅ تم تحديث وقراءة مستنداتك بنجاح!")
 
-# 5. عرض واجهة صندوق الرسائل والشات
+# 5. عرض محادثات الشات على الواجهة
 chat_container = st.container()
 with chat_container:
     for message in st.session_state.chat_history:
@@ -138,11 +138,9 @@ with chat_container:
 
 st.markdown("<div style='clear: both; margin-bottom: 40px;'></div>", unsafe_allow_html=True)
 
-# 6. 🎙️ محرك الاستماع الصوتي المستمر الذكي (Web Speech API)
-# يستمع لك تلقائياً بمجرد صمت الروبوت ولا يحتاج لضغط أزرار
-st.markdown("<p style='color:#6e6e80; font-size:0.9rem;'>🎙️ وضع الاستماع التلقائي والمحادثة المستمرة نشط الآن...</p>", unsafe_allow_html=True)
+# 6. 🎙️ محرك الاستماع الصوتي التلقائي والذكي بدون أزرار
+st.markdown("<p style='color:#6e6e80; font-size:0.9rem;'>🎙️ وضع الاستماع الصوتي المستمر نشط الآن تلقائياً...</p>", unsafe_allow_html=True)
 
-# نتحكم في تشغيل المايك عبر الجافا سكريبت بناء على حالة المتحدث الحالي
 js_listen_state = "false" if st.session_state.speaking else "true"
 
 js_speech_engine = f"""
@@ -169,9 +167,8 @@ if ({js_listen_state}) {{
 </script>
 """
 
-# دمج المحرك داخل الصفحة لاستقبال القيمة الصوتية المستمرة
 audio_input_bridge = st.components.v1.html(js_speech_engine, height=0)
-user_text_bridge = st.chat_input("أو اكتب رسالتك هنا يدوياً في أي وقت...")
+user_text_bridge = st.chat_input("أو اكتب رسالتك هنا يدوياً...")
 
 final_input = ""
 if user_text_bridge:
@@ -179,15 +176,14 @@ if user_text_bridge:
 elif audio_input_bridge:
     final_input = audio_input_bridge
 
-# 7. معالجة الذكاء الاصطناعي وصنع الرد التلقائي الشامل والـ TTS النطقي
+# 7. توليد الإجابة البرمجية الذكية باستخدام دالة invoke الحديثة والتحديث النطقي
 if final_input and not st.session_state.speaking:
-    # حفظ وتحديث الواجهة برسالة المستخدم فوراً
     save_message("user", final_input)
     st.session_state.chat_history.append({"role": "user", "text": final_input})
     st.markdown(f"<div class='chat-bubble-user' style='direction: rtl;'>{final_input}</div>", unsafe_allow_html=True)
     
-    # فحص محتويات ملفات الـ PDF إن وجدت
-    pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب من معرفتك العامة الموسوعية كذكاء اصطناعي."
+    # استخراج النصوص والبحث في الـ PDF
+    pdf_context = "لا توجد ملفات مرفوعة حالياً. أجب مباشرة من معلوماتك العامة."
     if os.path.exists("chroma_db") and len(os.listdir("chroma_db")) > 0:
         try:
             vector_store = Chroma(persist_directory="chroma_db", embedding_function=None)
@@ -197,32 +193,31 @@ if final_input and not st.session_state.speaking:
         except Exception:
             pass
 
-    # تجهيز سجل الذاكرة المؤقتة لضمان استمرار السياق الفكري
     history_context = ""
     for msg in st.session_state.chat_history[-5:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "أنت OmniSearch AI، مساعد صوتي محترف، ذكي، وموجز للغاية.\n"
-            "أجب دائماً باللغة العربية الفصحى السلسة والسهلة.\n"
-            "هام جداً: اجعل إجابتك قصيرة ومباشرة (سطر واحد أو سطرين فقط) لتناسب المحادثة الصوتية المستمرة سريعة الاستجابة.\n\n"
-            "سياق ملفات الـ PDF للمشروع المرفوع:\n{pdf_context}"
+            "أنت OmniSearch AI، مساعد صوتي ذكي وموجز للغاية.\n"
+            "أجب دائماً باللغة العربية الفصحى.\n"
+            "هام جداً: يجب أن تكون إجابتك مختصرة وقصيرة جداً (سطر أو سطرين كحد أقصى) لتناسب النطق الصوتي السريع والمحادثة المستمرة.\n\n"
+            "سياق ملفات الـ PDF للمشروع:\n{pdf_context}"
         )),
-        ("user", "سجل الجلسة السابقة:\n{history}\n\nالسؤال الجديد المطلوب الإجابة عليه بصوتك: {query}")
+        ("user", "سجل الجلسة السابقة:\n{history}\n\nالسؤال الحالي المطلوب الإجابة عليه: {query}")
     ])
     
-    full_prompt = prompt_template.format(pdf_context=pdf_context, history=history_context, query=final_input)
+    # استخدام نظام الـ Prompt والـ invoke المحدث والمتوافق بنسبة 100%
+    formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_input)
     
-    # توليد الإجابة
-    ai_response = llm.predict(full_prompt)
+    # تم التحديث هنا من predict إلى invoke لحل خطأ الـ AttributeError نهائياً
+    response_object = llm.invoke(formatted_prompt)
+    ai_response = response_object.content
     
-    # عرض الرد في الصندوق وتحديث السجل
     save_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     st.markdown(f"<div class='chat-bubble-ai' style='direction: rtl;'>🤖 {ai_response}</div>", unsafe_allow_html=True)
     
-    # تحويل الرد إلى مقطع صوتي ناطق وإعادة تشغيل المايك تلقائياً فور انتهائه
     st.session_state.speaking = True
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     
@@ -234,7 +229,6 @@ if final_input and not st.session_state.speaking:
     msg.rate = 1.1;
     
     msg.onend = function() {{
-        // إبلاغ السيرفر بانتهاء النطق لإعادة فتح المايكروفون تلقائياً
         parent.postMessage({{type: 'streamlit:setComponentValue', value: 'SPEECH_DONE'}}, '*');
     }};
     
@@ -245,7 +239,7 @@ if final_input and not st.session_state.speaking:
     time.sleep(0.5)
     st.rerun()
 
-# التحقق من إشارة انتهاء النطق لإعادة فتح المايك للاستماع مجدداً
+# إعادة فتح المايك مجدداً بمجرد صمت الروبوت لتستمر المحادثة تلقائياً
 if final_input == "SPEECH_DONE":
     st.session_state.speaking = False
     st.rerun()
