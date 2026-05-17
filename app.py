@@ -105,8 +105,7 @@ with st.sidebar:
                 for page in loader.load():
                     extracted_text_list.append(page.page_content)
             
-            # حفظ النصوص مباشرة في الجلسة بطريقة مستقرة 100% بعيداً عن أخطاء المكتبات الخارجية
-            st.session_state.pdf_context_memory = "\n".join(extracted_text_list)[:4000] # اقتطاع ذكي يناسب الذاكرة
+            st.session_state.pdf_context_memory = "\n".join(extracted_text_list)[:4000] 
             st.success("✅ تم حفظ وفهرسة مستنداتك في الذاكرة الآمنة بنجاح!")
             
     st.markdown("---")
@@ -201,11 +200,12 @@ elif audio_file:
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
+                # تحديث الـ Prompt لربط محرك الصوت بكلمات التصحيح العامية لزيادة دقة الفهم اللحظي
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="مساء الخير، كيف الحال، وش أخبارك، أين يلعب ميسي. المتحدث يتحدث بلهجة محلية وعامية واضحة ومفهومة.",
+                    prompt="لا قصدي، قصدي كذا، التعديل هو، ميسي، الدوري، بوردو، أهلاً، كيف الحال، وش أخبارك. المتحدث يصحح كلامه بلهجة عامية ومحلية واضحة.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -216,13 +216,12 @@ elif audio_file:
     except Exception:
         pass
 
-# --- 5. توليد الرد بالاعتماد الفعلي الحقيقي على الإنترنت والسياق المحلي ---
+# --- 5. توليد الرد وفصل الرسائل تاريخياً لمنع التداخل والعمى المؤقت ---
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     display_chat()
     
-    # تشغيل تأثير شريط النيون البصري لمحاكاة معالجة الصوت والبحث اللحظي
     st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
     
     with st.spinner("🌐 جاري استدعاء الإنترنت وجلب الحقائق اللحظية الشاملة..."):
@@ -230,30 +229,36 @@ if final_query != "":
 
     pdf_context = st.session_state.pdf_context_memory
 
-    history_context = ""
-    for msg in st.session_state.chat_history[-2:-1]:
-        history_context += f"{msg['role']}: {msg['text']}\n"
-
-    # ملقن نظام يجبر الموديل على الرد باللهجة المطلوبة والاعتماد على بيانات الويب لعام 2026
-    prompt_template = ChatPromptTemplate.from_messages([
+    # بناء قائمة الرسائل بشكل منظم ومنفصل تماماً لمنع التداخل والخلط
+    messages_input = [
         ("system", (
-            "أنت مساعد ذكي وموسوعي مخصص لمساعدة المستخدم العربي.\n"
-            "مهمتك القصوى هي الإجابة بدقة بالاعتماد الكامل على معلومات الويب المرفقة لتحديث بياناتك وتصحيح المعلومات القديمة (مثل الإشارة الصارمة والمحدثة إلى أن ميسي يلعب حالياً في نادي إنتر ميامي الأمريكي وليس باريس سان جيرمان).\n"
-            f"هام جداً: يجب أن تصيغ ردك وتتحدث بالكامل باستخدام: ({dialect}) تلبيةً لرغبة المستخدم المحددة في الإعدادات وبأسلوب جذاب.\n\n"
+            "أنت مساعد ذكي ومحترف ومخصص لمساعدة المستخدم بدقة متناهية وبدون تكرار.\n"
+            "مهمتك القصوى هي الإجابة بدقة بالاعتماد الكامل على معلومات الويب المرفقة لتحديث بياناتك وتصحيح المعلومات القديمة.\n"
+            f"هام جداً: يجب أن تصيغ ردك وتتحدث بالكامل باستخدام: ({dialect}) بأسلوب طبيعي ومباشر.\n\n"
+            "⚠️ قواعد صارمة لمنع التشتت وتداخل المعلومات:\n"
+            "1. إذا بدأ المستخدم سؤاله بـ 'لا قصدي عن...' أو قام بتعديل مسار كلامه، فانتبه فوراً للتصحيح الأخير واهمل المقاصد القديمة التي رفضها وعبر عنها بوضوح.\n"
+            "2. ادخل في صلب الإجابة فوراً، لا تكرر ديباجات ترحيبية ولا تعيد صياغة السؤال. أعطه الحقائق المرتبة مباشرة.\n\n"
             "معلومات الويب الحية المحدثة حالياً:\n{live_web_context}\n\n"
             "سياق المستندات المرفوعة:\n{pdf_context}"
-        )),
-        ("user", "الحوار السابق:\n{history}\n\nالسؤال المطلوب الإجابة عليه الآن بدقة: {query}")
-    ])
+        ))
+    ]
+
+    # تمرير آخر 4 رسائل فقط بشكل منفصل كبنية حوار حقيقية ليفهم تسلسل التصحيح التلقائي
+    for msg in st.session_state.chat_history[-4:-1]:
+        messages_input.append((msg["role"], msg["text"]))
+
+    # إضافة الطلب أو التصحيح الحالي كمستند نهائي مستقل
+    messages_input.append(("user", final_query))
+
+    prompt_template = ChatPromptTemplate.from_messages(messages_input)
     
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-    llm = ChatGroq(temperature=0.3, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+    # تقليل الـ temperature إلى 0.2 لجعله حاداً وملتزماً بالسياق المباشر دون تشتت
+    llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
     
     formatted_prompt = prompt_template.format_messages(
         live_web_context=live_web_context,
-        pdf_context=pdf_context if pdf_context else "لا توجد ملفات مستندات في الذاكرة حالياً.",
-        history=history_context,
-        query=final_query
+        pdf_context=pdf_context if pdf_context else "لا توجد ملفات مستندات في الذاكرة حالياً."
     )
     
     with chat_placeholder.container():
@@ -284,4 +289,3 @@ if final_query != "":
     
     final_query = ""
     st.rerun()
-
