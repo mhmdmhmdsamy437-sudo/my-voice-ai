@@ -25,22 +25,34 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تثبيت التصميم الداكن الفاخر بنسبة 100% وإخفاء أدوات المطورين وجيت هاب تماماً
+# تثبيت التصميم الداكن الفاخر بنسبة 100% وإخفاء أدوات المطورين مع إبقاء زر القائمة الجانبية للهواتف
 st.markdown("""
     <style>
-    /* إخفاء زر الجيت هاب والشريط العلوي لتبدو كواجهة تطبيق كاملة */
-    #MainMenu, header, footer {
+    /* إخفاء شريط جيت هاب والترقية العلوي فقط */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+    header[data-testid="stHeader"] > div:first-child {
         visibility: hidden !important;
-        height: 0px !important;
     }
     .stAppDeployButton {
         display: none !important;
     }
     
+    /* ضمان ظهور سهم فتح القائمة الجانبية على الهواتف بشكل لائق */
+    button[data-testid="sidebarCollapsedControl"] {
+        color: #f3f4f6 !important;
+        background-color: #1f2937 !important;
+        border-radius: 8px !important;
+        margin-top: 10px !important;
+        margin-left: 10px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+    }
+    
     .stApp, .main, .block-container {
         background-color: #111827 !important;
         color: #f3f4f6 !important;
-        padding-top: 10px !important;
+        padding-top: 15px !important;
     }
     .chat-container {
         display: flex;
@@ -165,7 +177,6 @@ llm = init_groq_llm()
 # 4. إدارة المستندات والإعدادات (الـ Sidebar الجانبي)
 with st.sidebar:
     st.markdown("### ⚙️ التحكم بالصوت")
-    # زر واحد متكامل للتشغيل والإيقاف على طريقة التطبيقات العالمية وحسب رغبتك
     enable_tts = st.toggle("تفعيل النطق الصوتي التلقائي 🔊", value=True)
     
     st.markdown("---")
@@ -253,7 +264,7 @@ elif audio_file:
     except Exception:
         st.warning("يرجى المحاولة مجدداً والتحدث بوضوح.")
 
-# 7. معالجة الرد النهائي بنظام التدفق الذكي العالمي (Streaming)
+# 7. معالجة الرد النهائي بنظام الذاكرة المتزنة والمحمية
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
@@ -269,17 +280,18 @@ if final_query != "":
         except Exception:
             pass
 
+    # تقليص الذاكرة اللحظية إلى الحوار المباشر الفعلي لمنع التكرار والهلوسة الصوتية
     history_context = ""
-    for msg in st.session_state.chat_history[-7:-1]:
+    for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
             "أنت (صوتك AI)، مساعد ذكي موسوعي تفاعلي، دقيق للغاية وعالمي. "
-            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب رصين وموثوق.\n\n"
+            "أجب على سؤال المستخدم مباشرة باللغة العربية الفاصحة وبأسلوب رصين وموثوق.\n\n"
             "📋 تعليمات التشغيل الحازمة:\n"
             "1. إذا كان سؤال المستخدم عاماً (مثل: معلومات رياضية، سياسية، تاريخية، أو طبية عامة)، أجب بكل ثقة من خلال معارفك وحقائقك العالمية الحقيقية والواقعية 100%. وممنوع تماماً تأليف أو تخمين أسماء شخصيات وهمية.\n"
-            "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه, اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
+            "2. إذا كان السؤال يشير بوضوح إلى مستند أو ملف قام المستخدم برفعه، اعتمد هنا فقط على سياق الملفات المرفوعة الموفر لك بالأسفل.\n"
             "3. لا تكتب أبداً في بداية الرد مقدمات مكررة مثل 'الإجابة:' أو 'الرد:'. ابدأ صلب موضوع إجابتك فوراً.\n\n"
             "سياق الملفات المرفوعة:\n{pdf_context}"
         )),
@@ -316,5 +328,7 @@ if final_query != "":
         """
         st.components.v1.html(js_universal_tts, height=0)
     
+    # تفريغ كلي لمنع التكرار التلقائي في المتصفح
+    final_query = ""
     st.rerun()
 
