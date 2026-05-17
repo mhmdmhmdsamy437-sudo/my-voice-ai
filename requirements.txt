@@ -4,6 +4,4 @@ langchain-community
 langchain-text-splitters
 chromadb
 langchain-groq
-duckduckgo-search
-sentence-transformers
 pypdf
