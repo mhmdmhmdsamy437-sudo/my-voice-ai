@@ -80,7 +80,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("نظام الذكاء الاصطناعي الصوتي المستقر والمحمي ضد تذبذب الإنترنت وضغط الملفات")
+st.caption("الجيل المطور والمستقر للمحادثات الصوتية والذكية")
 st.markdown("---")
 
 # 2. إدارة قاعدة البيانات المحلية للمحادثات
@@ -145,7 +145,7 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", "")
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.0, 
+        temperature=0.6,  # رفعنا الـ temperature قليلاً ليعطي ردوداً طبيعية وتفاعلية مثل البشر
         groq_api_key=GROQ_API_KEY,
         model_name="llama-3.1-8b-instant"
     )
@@ -193,11 +193,11 @@ for message in st.session_state.chat_history:
         st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. قسم أدوات الإدخال والمعالجة المباشرة والآمنة للملفات الصوتية الخرسانية
+# 6. قسم أدوات الإدخال والمعالجة المباشرة والآمنة
 st.markdown("### 🎙️ أداة الإدخال")
 col_audio, col_space = st.columns([1, 2])
 
-raw_query = ""
+final_query = ""
 
 with col_audio:
     audio_file = st.audio_input("تحدث الآن")
@@ -205,7 +205,7 @@ with col_audio:
 user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً...")
 
 if user_text_input:
-    raw_query = user_text_input
+    final_query = user_text_input
 elif audio_file:
     try:
         audio_bytes = audio_file.read()
@@ -213,10 +213,9 @@ elif audio_file:
         
         if audio_size > 2000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
-            with st.spinner("🎙️ جاري قراءة وتحليل الكلمات الصادرة من المايكروفون..."):
+            with st.spinner("🎙️ جاري السماع وفهم النص..."):
                 client = Groq(api_key=GROQ_API_KEY)
                 
-                # قراءة البايتات بشكل مباشر وآمن دون الاعتماد على مكتبات النظام الخارجية المعقدة
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
                 
@@ -224,40 +223,22 @@ elif audio_file:
                     file=audio_buffer,
                     model="whisper-large-v3",
                     language="ar",
-                    prompt="المتحدث يتحدث باللغة العربية بلهجة واضحة وعامية مفهومة، يرجى كتابة الكلمات الإملائية بدقة وبدون أي نقص.",
+                    prompt="المتحدث يتحدث باللغة العربية الفصحى أو العامية. يرجى كتابة ما يقوله بدقة إملائية تامة وبدون أي مقدمات.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
                 if len(captured_text) > 1:
-                    raw_query = captured_text
+                    final_query = captured_text
     except Exception:
-        st.warning("تنبيه: نعتذر، يرجى تكرار الجملة المسموعة بوضوح لضمان التقاطها عبر الشبكة.")
+        st.warning("يرجى المحاولة مجدداً والتحدث بوضوح.")
 
-# 🧠 نظام الفهم وتأكيد نية المستخدم وإعادة الصياغة الاحترافية (ChatGPT Logic)
-final_query = ""
-if raw_query != "":
-    with st.spinner("🧠 جاري صقل السؤال وفهم نيتك الحقيقية..."):
-        try:
-            correction_prompt = f"""
-            أنت نظام ذكي مسؤول عن تصحيح وفهم النصوص الصوتية لتعمل بدقة مثل ChatGPT.
-            قم بقراءة النص التالي، وافهم النية الحقيقية للمدخل الصوتي، وصحح أي خطأ إملائي أو تداخل كلمات ناتج عن التسجيل والإنترنت، وأعد صياغته كسؤال بليغ ومفهوم تماماً باللغة العربية.
-            
-            النص الخام: "{raw_query}"
-            
-            أخرج فقط السؤال النهائي المصحح بوضوح وبدون أي تعليق إضافي منك على الإطلاق.
-            """
-            correction_res = llm.invoke(correction_prompt)
-            final_query = correction_res.content.strip()
-        except Exception:
-            final_query = raw_query
-
-# 7. معالجة الرد النهائي الاحترافي والنطق التلقائي
+# 7. معالجة الرد النهائي المباشر والمنطقي تماماً
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     
-    # البحث في الـ PDF
-    pdf_context = "لا توجد مستندات. أجب من معلوماتك العامة الدقيقة والمهنية بأعلى مستوى من الاحترافية والطلاقة اللغوية الفصحى."
+    # البحث الذكي في ملفات الـ PDF إن وجدت
+    pdf_context = "لا توجد مستندات مرفوعة حالياً. أجب مباشرة بناءً على معرفتك العامة."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
@@ -267,33 +248,36 @@ if final_query != "":
         except Exception:
             pass
 
+    # جلب سياق المحادثة السابقة المباشر
     history_context = ""
     for msg in st.session_state.chat_history[-3:-1]:
         history_context += f"{msg['role']}: {msg['text']}\n"
 
+    # سيستم برومبت معدل ومحكم لمنع الإجابات الطويلة والغير منطقية
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "You are Sawtak AI, an elite conversational intelligence assistant operating at ChatGPT standard.\n"
-            "CRITICAL: You must respond ONLY in flawless, elegant, and perfectly structured professional Arabic.\n"
-            "Provide insightful, deeply informative, and clear answers. Avoid any spelling mistakes or broken phrasing completely.\n\n"
-            "Context from uploaded files:\n{pdf_context}"
+            "أنت مساعد ذكي تفاعلي وسريع يُدعى (صوتك AI). "
+            "أجب على سؤال المستخدم مباشرة باللغة العربية الفصحى وبأسلوب طبيعي ومفهوم تماماً مثل البشر. "
+            "تجنب كتابة كلمات مثل 'الإجابة:' أو 'الرد:' في بداية رسالتك. "
+            "إذا كان السؤال بسيطاً (مثل التحية)، أجب باختصار ولطف وبدون إطالة غير مبررة.\n\n"
+            "السياق المتاح من الملفات المرفوعة:\n{pdf_context}"
         )),
-        ("user", "Context:\n{history}\n\nQuestion: {query}")
+        ("user", "سجل المحادثة الأخيرة:\n{history}\n\nسؤال المستخدم الحالي: {query}")
     ])
     
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_query)
     
-    with st.spinner("🤖 جاري صياغة الرد الاحترافي الأمثل..."):
+    with st.spinner("🤖 جاري صياغة الرد..."):
         try:
             response_object = llm.invoke(formatted_prompt)
-            ai_response = response_object.content
+            ai_response = response_object.content.strip()
         except Exception:
-            ai_response = "عذراً، حدث بطء مؤقت في معالجة البيانات عبر الشبكة، يرجى المحاولة مجدداً."
+            ai_response = "عذراً، حدث خطأ مؤقت في الاتصال، يرجى إعادة إرسال رسالتك."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # محرك النطق التلقائي الفوري والسرعة العالية
+    # محرك النطق التلقائي الخفيف والذكي
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
