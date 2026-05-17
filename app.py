@@ -3,6 +3,7 @@ import sqlite3
 import uuid
 import streamlit as st
 import time
+import re
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -10,7 +11,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
 
-# 1. إعدادات الواجهة الفخمة والتهيئة الآمنة (Sawtak AI)
+# 1. إعدادات الواجهة والسمة الفاخرة المستقرة
 st.set_page_config(page_title="صوتك | Sawtak AI", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
@@ -24,34 +25,77 @@ for path in [USER_DOCS_DIR, USER_DB_DIR]:
     if not os.path.exists(path):
         os.makedirs(path)
 
-# تنسيق واجهة مستخدم (UI/UX) سينمائي فاخر يشبه ChatGPT تماماً
+# إصلاح الخلفية بالكامل وتنسيق الفقاعات لتكون منفصلة وواضحة مثل ChatGPT
 st.markdown("""
     <style>
-    .main { background-color: #0b0f19; color: #ffffff; }
-    .stApp { background-color: #0b0f19; }
-    .chat-container { display: flex; flex-direction: column; gap: 16px; margin-bottom: 30px; }
+    /* توحيد لون الخلفية للتطبيق بالكامل لمنع التداخل */
+    .stApp, .main, .block-container {
+        background-color: #111827 !important;
+        color: #f3f4f6 !important;
+    }
+    
+    /* حاوية المحادثة وتوزيع العناصر */
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 10px;
+        margin-bottom: 40px;
+    }
+    
+    /* فقاعة المستخدم المتميزة */
     .chat-bubble-user {
-        background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 14px 20px; 
-        border-radius: 20px 20px 4px 20px; align-self: flex-end; max-width: 75%;
-        font-family: system-ui, -apple-system, sans-serif; text-align: right;
-        box-shadow: 0 4px 15px rgba(0,123,255,0.2);
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #ffffff !important;
+        padding: 14px 20px;
+        border-radius: 20px 20px 4px 20px;
+        align-self: flex-end;
+        max-width: 70%;
+        margin-left: auto;
+        font-family: system-ui, -apple-system, sans-serif;
+        text-align: right;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
     }
+    
+    /* فقاعة الذكاء الاصطناعي الواضحة والمريحة للعين */
     .chat-bubble-ai {
-        background-color: #1e293b; color: #f8fafc; padding: 14px 20px; 
-        border-radius: 20px 20px 20px 4px; align-self: flex-start; max-width: 75%;
-        font-family: system-ui, -apple-system, sans-serif; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #334155;
+        background-color: #1f2937;
+        color: #f3f4f6 !important;
+        padding: 16px 22px;
+        border-radius: 20px 20px 20px 4px;
+        align-self: flex-start;
+        max-width: 70%;
+        margin-right: auto;
+        font-family: system-ui, -apple-system, sans-serif;
+        text-align: right;
+        border: 1px solid #374151;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
-    .stTextInput input { background-color: #1e293b !important; color: white !important; border: 1px solid #475569 !important; }
-    h1, p, span, label { color: white !important; }
+    
+    /* تعديل نصوص المدخلات الجانبية والقوائم */
+    .stSidebar {
+        background-color: #1f2937 !important;
+        border-right: 1px solid #374151;
+    }
+    
+    h1, h2, h3, p, span, label {
+        color: #f3f4f6 !important;
+    }
+    
+    /* تحسين شكل المدخل النصي السفلي */
+    .stChatInputContainer input {
+        background-color: #1f2937 !important;
+        color: white !important;
+        border: 1px solid #4b5563 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🎙️ صوتك | Sawtak AI")
-st.caption("الجيل القادم من المساعدات الذكية الفورية - مدعوم بمصحح السياق العبقري")
+st.caption("النسخة الاحترافية المستقرة بالكامل - معالجة فورية وتنسيق بصري متكامل")
 st.markdown("---")
 
-# 2. إدارة قاعدة البيانات المحفوظة للمستخدم
+# 2. إدارة قاعدة البيانات المحلية
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -107,38 +151,38 @@ if "chat_history" not in st.session_state:
 if "last_processed_audio_size" not in st.session_state:
     st.session_state.last_processed_audio_size = 0
 
-# 3. تهيئة مفتاح ونموذج الذكاء الاصطناعي الرئيسي ومصحح النصوص
+# 3. تهيئة محرك النماذج الذكية
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
 
 @st.cache_resource
 def init_groq_llm():
     return ChatGroq(
-        temperature=0.1,  # جعل الموديل حاسماً ودقيقاً جداً لتجنب التخريف
+        temperature=0.0,  # تصفير العشوائية ليعطي إجابة حاسمة بدون أخطاء إملائية
         groq_api_key=GROQ_API_KEY,
         model_name="llama-3.1-8b-instant"
     )
 
 llm = init_groq_llm()
 
-# 4. لوحة التحكم الجانبية لإدارة المستندات
+# 4. إدارة الملفات المرفوعة (الشريط الجانبي)
 with st.sidebar:
     st.markdown("### 📁 المستندات والملفات الذكية")
-    st.info(f"المستخدم النشط: `Sawtak-{st.session_state.user_id[:6].upper()}`")
+    st.info(f"المستخدم: `Sawtak-{st.session_state.user_id[:6].upper()}`")
     
-    uploaded_files = st.file_uploader("قم بسحب وإفلات ملفات الـ PDF هنا:", type=["pdf"], accept_multiple_files=True)
-    process_button = st.button("تحديث قاعدة البيانات السحابية 🔄", use_container_width=True)
+    uploaded_files = st.file_uploader("ارفع ملفات الـ PDF هنا:", type=["pdf"], accept_multiple_files=True)
+    process_button = st.button("تحديث الفهرس الذكي 🔄", use_container_width=True)
     
     st.markdown("---")
-    if st.button("🗑️ تصفير المحادثة وحذف المستندات", use_container_width=True):
+    if st.button("🗑️ مسح السجل وإعادة التصفير", use_container_width=True):
         clear_user_data()
         st.session_state.chat_history = []
         st.session_state.last_processed_audio_size = 0
-        st.success("تم تنظيف البيئة تماماً!")
+        st.success("تم مسح كل شيء!")
         time.sleep(1)
         st.rerun()
 
 if process_button and uploaded_files:
-    with st.spinner("جاري قراءة الملفات وبناء الفهرس الذكي..."):
+    with st.spinner("جاري معالجة المستندات وفهرستها..."):
         all_docs = []
         for uploaded_file in uploaded_files:
             file_path = os.path.join(USER_DOCS_DIR, uploaded_file.name)
@@ -150,35 +194,34 @@ if process_button and uploaded_files:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=80)
         final_chunks = text_splitter.split_documents(all_docs)
         Chroma.from_documents(documents=final_chunks, embedding=None, persist_directory=USER_DB_DIR)
-        st.sidebar.success("✅ تم تحديث المستندات بنجاح!")
+        st.sidebar.success("✅ تم الفهرسة بنجاح!")
 
-# 5. عرض ساحة الشات بتصميم راقي جداً
+# 5. عرض المحادثة بالتنسيق الفاخر الجديد المستقر
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 for message in st.session_state.chat_history:
     if message["role"] == "user":
         st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='chat-bubble-ai'>🤖 {message['text']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 6. قسم أدوات الإدخال فائقة الحساسية والذكاء
-st.markdown("### 🎙️ تحدث أو اكتب سؤالك")
+# 6. قسم أدوات التقاط المدخلات النظيفة
+st.markdown("### 🎙️ أداة الإدخال")
 col_audio, col_space = st.columns([1, 2])
 
 raw_query = ""
 
 with col_audio:
-    audio_file = st.audio_input("اضغط على المايك للتحدث")
+    audio_file = st.audio_input("تحدث الآن")
 
-user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً إذا كنت تفضل ذلك...")
+user_text_input = st.chat_input("اكتب سؤالك هنا يدوياً...")
 
-# التقاط الصوت وتحويله بدقة بالغة
 if user_text_input:
     raw_query = user_text_input
 elif audio_file:
     if audio_file.size > 1000 and audio_file.size != st.session_state.last_processed_audio_size:
         st.session_state.last_processed_audio_size = audio_file.size
-        with st.spinner("🎙️ جاري الاستماع وتصحيح الكلمات إملائياً..."):
+        with st.spinner("🎙️ جاري تصفية الصوت وقراءة النص..."):
             try:
                 client = Groq(api_key=GROQ_API_KEY)
                 temp_audio_path = os.path.join(USER_DIR, "temp_voice.wav")
@@ -190,7 +233,7 @@ elif audio_file:
                         file=(temp_audio_path, file.read()),
                         model="whisper-large-v3",
                         language="ar",
-                        prompt="المتحدث يتحدث بلهجة عربية عامية ممزوجة، يرجى كتابة الكلمات بشكل صحيح وتجنب الأخطاء الإملائية.",
+                        prompt="المتحدث يتحدث باللغة العربية. يرجى تحويل الصوت بدقة إلى كلمات عربية صحيحة دون أخطاء.",
                         response_format="text"
                     )
                 captured_text = str(transcription).strip()
@@ -200,34 +243,33 @@ elif audio_file:
                 if os.path.exists(temp_audio_path):
                     os.remove(temp_audio_path)
             except Exception:
-                st.error("تنبيه: عذراً، المايك لم يلتقط الصوت بوضوح كامل، أعد المحاولة ثانية.")
+                st.error("لم يتم التقاط الصوت بشكل كامل، يرجى المحاولة مرة أخرى بوضوح.")
 
-# 🧠 الفلتر الخفي والمصحح الذكي لضمان فهم السؤال بنسبة 100% مثل شات جي بي تي
+# 🧠 نظام التنظيف التلقائي المزدوج وفهم مقصود المستخدم بدقة ChatGPT
 final_query = ""
 if raw_query != "":
-    with st.spinner("🧠 جاري تحليل سياق وفهم السؤال بشكل احترافي..."):
+    with st.spinner("🧠 جاري إصلاح وفهم نية السؤال تلقائياً..."):
         try:
             correction_prompt = f"""
-            أنت خبير لغوي ومحلل سياق ذكي جداً لمدخلات المستخدمين الصوتية.
-            أمامك نص تم تحويله من تسجيل صوتی، قد يحتوي على أخطاء إملائية، نقص في الكلمات، أو صياغة عامية ركيكة.
-            مهمتك الوحيدة: فهم "نية المستخدم الحقيقية" وإعادة صياغة النص إلى سؤال واضح، صحيح إملائياً وبليغ باللغة العربية دون تعديل في جوهر المعنى.
+            أنت نظام ذكي مسؤول عن تصحيح وفهم النصوص الصوتية قبل إرسالها للمساعد.
+            قم بقراءة النص التالي، وافهم النية الحقيقية للمستخدم، وصحح أي خطأ إملائي أو نقص ناتج عن التسجيل، وأعد صياغته كسؤال بليغ ومفهوم باللغة العربية.
             
-            النص الخام المراد تصحيحه وفهمه: "{raw_query}"
+            النص الخام: "{raw_query}"
             
-            أخرج فقط السؤال المصحح النهائي مباشرة بدون أي مقدمات أو تحيات أو شرح.
+            أخرج فقط السؤال النهائي المصحح بوضوح وبدون أي تعليق إضافي منك.
             """
             correction_res = llm.invoke(correction_prompt)
             final_query = correction_res.content.strip()
         except Exception:
-            final_query = raw_query  # في حال حدوث أي خطأ نعتمد النص الأصلي كحماية
+            final_query = raw_query
 
-# 7. إرسال الطلب النهائي المصحح وتوليد الإجابة السينمائية
+# 7. توليد الرد الاحترافي المتناسق فوري النطق
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     
-    # البحث بذكاء في الـ PDF
-    pdf_context = "لا توجد مستندات مرفوعة حالياً في مساحة المستخدم الشخصية. أجب بناءً على معلوماتك العامة القوية بدقة واحترافية وبشكل مفصل ومقنع."
+    # جلب السياق من الـ PDF
+    pdf_context = "لا توجد مستندات. أجب من معلوماتك العامة الدقيقة والمهنية بأعلى مستوى من الاحترافية والطلاقة اللغوية."
     if os.path.exists(USER_DB_DIR) and len(os.listdir(USER_DB_DIR)) > 0:
         try:
             vector_store = Chroma(persist_directory=USER_DB_DIR, embedding_function=None)
@@ -243,34 +285,33 @@ if final_query != "":
 
     prompt_template = ChatPromptTemplate.from_messages([
         ("system", (
-            "You are Sawtak AI, an elite and highly professional artificial intelligence assistant, built to match ChatGPT's standard.\n"
-            "Respond to the user in fluent, eloquent, and flawless Arabic.\n"
-            "Be highly informative, professional, and helpful. Maintain a polite and structured response layout.\n"
-            "If context from uploaded PDFs is relevant, prioritize it carefully:\n{pdf_context}"
+            "You are Sawtak AI, an advanced conversational intelligence system operating at the highest levels of accuracy, matching ChatGPT quality.\n"
+            "CRITICAL RULE: You must respond ONLY in flawless, elegant, and perfectly structured Arabic.\n"
+            "Do not output any spelling mistakes or broken phrasing. Be highly informative, professional, and directly address the user's core intent.\n"
+            "Context from uploaded files:\n{pdf_context}"
         )),
-        ("user", "Conversation History:\n{history}\n\nUser Question: {query}")
+        ("user", "Context:\n{history}\n\nQuestion: {query}")
     ])
     
     formatted_prompt = prompt_template.format_messages(pdf_context=pdf_context, history=history_context, query=final_query)
     
-    with st.spinner("🤖 صوتك يفكر في الإجابة الأكثر احترافية..."):
+    with st.spinner("🤖 جاري صياغة الرد الاحترافي الأمثل..."):
         try:
             response_object = llm.invoke(formatted_prompt)
             ai_response = response_object.content
         except Exception:
-            ai_response = "عذراً يا فندم، واجه الخادم طلباً مكثفاً للغاية الآن، يرجى إعادة المحاولة بعد ثانية واحدة."
+            ai_response = "عذراً، حدث ضغط مؤقت في معالجة البيانات، يرجى المحاولة مجدداً."
     
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     
-    # 🔊 توليد النطق التلقائي فائق الجودة والنقاء بلغة الضاد
+    # النطق الفوري المستقر
     clean_text = ai_response.replace("'", "\\'").replace("\n", " ")
     js_universal_tts = f"""
     <script>
     window.speechSynthesis.cancel();
     var msg = new SpeechSynthesisUtterance('{clean_text}');
     msg.lang = 'ar-SA';
-    msg.rate = 1.0; 
     window.speechSynthesis.speak(msg);
     </script>
     """
