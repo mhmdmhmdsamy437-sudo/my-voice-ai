@@ -24,12 +24,12 @@ class TextPrompt(BaseModel):
 
 def get_strict_system_prompt(dialect: str) -> str:
     return f"""
-    You are 'Sawtak AI' (صوتك), a premium multi-lingual conversational assistant.
-    
+    You are 'Sawtak AI' (صوتك), a premium conversational assistant optimized ONLY for 3 languages: Arabic, English, and French.
+   
     CRITICAL INSTRUCTIONS:
-    1. MATCH USER LANGUAGE: Detect the exact language the user is speaking or writing (Arabic, English, French, etc.) and respond ONLY in that same language.
-    2. NO MIXING: Do not mix languages. If the user writes in Arabic, respond 100% in Arabic. If they write in English, respond 100% in English.
-    3. DIALECT ADAPTATION: If the user communicates in Arabic, adapt your tone naturally to match their context or their preferred style/dialect: ({dialect}). Understand slang, local words, and general phrasing perfectly.
+    1. STRICT LANGUAGE RESTRICTION: You are allowed to respond ONLY in one of these three languages: Arabic (العربية), English, or French (Français). NEVER respond in any other language under any circumstances.
+    2. MATCH USER LANGUAGE: Detect which of the 3 allowed languages the user is speaking or writing, and respond 100% in that exact language. No language mixing.
+    3. DIALECT ADAPTATION: If the user communicates in Arabic, adapt your tone naturally to match their context or their preferred style/dialect: ({dialect}). Understand local phrasing, slang, and common expressions perfectly.
     4. Keep answers highly interactive, professional, and clear.
     """
 
@@ -46,7 +46,7 @@ async def chat_text(prompt: TextPrompt):
             temperature=0.4
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
-    except Exception as e: 
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/vision")
@@ -54,7 +54,7 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
     try:
         image_bytes = await file.read()
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
+       
         system_msg = get_strict_system_prompt(dialect)
         completion = client.chat.completions.create(
             model="llama-3.2-11b-vision-instant",
@@ -63,7 +63,7 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": text if text else "Analyze and describe this image clearly."},
+                        {"type": "text", "text": text if text else "Analyze and describe this image clearly using one of the allowed languages (Arabic, English, French)."},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }
@@ -71,7 +71,7 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
             temperature=0.3
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
-    except Exception as e: 
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/audio")
@@ -79,18 +79,24 @@ async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
     try:
         audio_bytes = await file.read()
         temp_filename = "temp_audio.wav"
-        with open(temp_filename, "wb") as f: 
+        with open(temp_filename, "wb") as f:
             f.write(audio_bytes)
-            
+           
         with open(temp_filename, "rb") as audio_file:
+            # تم إضافة 'prompt' هنا لتوجيه المحرك لغوياً وإجباره على التفسير بـ (العربية، الإنجليزية، الفرنسية) فقط
             transcription = client.audio.transcriptions.create(
-                file=audio_file, 
-                model="whisper-large-v3", 
-                response_format="text"
+                file=audio_file,
+                model="whisper-large-v3",
+                response_format="text",
+                prompt="مرحبا، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ Hello, how can I help you today? Bonjour, comment puis-je vous aider?"
             )
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
         
+        # حماية إضافية في حال كان الملف فارغاً تماماً
+        if not captured_text:
+            return {"status": "success", "user_speech": "...", "response": "لم أتمكن من سماع أي صوت بوضوح، أرجو المحاولة مرة أخرى بقرب المايك."}
+       
         system_msg = get_strict_system_prompt(dialect)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -101,10 +107,10 @@ async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
             temperature=0.4
         )
         return {
-            "status": "success", 
-            "user_speech": captured_text, 
+            "status": "success",
+            "user_speech": captured_text,
             "response": completion.choices[0].message.content.strip()
         }
-    except Exception as e: 
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
