@@ -1,47 +1,90 @@
 <!DOCTYPE html>
-<html lang="ae">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sawtak AI Full-Stack</title>
+    <title>Sawtak AI Pro</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+
     <div class="app-container">
-        <aside class="sidebar">
-            <h2>⚙️ الإعدادات المتقدمة</h2>
-            <div class="control-group">
-                <label>لهجة رد الـ AI:</label>
-                <select id="dialectSelect">
-                    <option value="لهجة سودانية دارجة">السودانية 🇸🇩</option>
-                    <option value="العربية الفصحى بمصطلحات مبسطة">الفصحى 🌐</option>
-                    <option value="اللهجة المصرية">المصرية 🇪🇬</option>
-                    <option value="اللهجة الخليجية">الخليجية 🇸🇦</option>
-                </select>
+        <header class="app-header">
+            <div class="logo-area">
+                <i class="fa-solid fa-microphone-lines logo-icon"></i>
+                <h2>صوتك <span>AI</span></h2>
             </div>
-            <button id="clearChatBtn" class="danger-btn"><i class="fas fa-trash"></i> مسح الحوار</button>
-        </aside>
-        <main class="chat-area">
-            <header class="chat-header">
-                <h1>🎙️ صوتك AI <span class="badge">Pro Full-Stack</span></h1>
-                <p>واجهة أمامية منفصلة فائقة السرعة والاستجابة</p>
-            </header>
-            <div class="messages-container" id="messagesContainer"></div>
-            <footer class="input-footer">
-                <div class="preview-box" id="previewBox" style="display: none;">
-                    <span id="previewName"></span>
-                    <button id="removeFileBtn"><i class="fas fa-times"></i></button>
+            <button id="settingsBtn" class="icon-btn-glow" title="الإعدادات المتقدمة">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </header>
+
+        <main class="chat-container">
+            <div id="chatMessages" class="chat-messages">
+                <div id="welcomeScreen" class="welcome-screen">
+                    <div class="welcome-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3>مرحباً بك في مستقبل الذكاء الاصطناعي</h3>
+                    <p>جرّب أحد المقترحات التالية لبدء المحادثة السريعة:</p>
+                    <div class="suggested-cards">
+                        <div class="suggest-card" onclick="setPresetPrompt('حلل لي جودة الصوت المرفوع واقترح تحسينات هندسية')">
+                            <i class="fa-solid fa-wave-square"></i>
+                            <h4>هندسة صوتية</h4>
+                            <p>تحليل الصوت والذبذبات</p>
+                        </div>
+                        <div class="suggest-card" onclick="setPresetPrompt('اشرح لي محتوى هذه الصورة بالعامية وبدقة')">
+                            <i class="fa-solid fa-eye"></i>
+                            <h4>تحليل بصري ذكي</h4>
+                            <p>ارفع صورة واطلب شرحها</p>
+                        </div>
+                        <div class="suggest-card" onclick="setPresetPrompt('ترجم جملتي القادمة تلقائياً إلى الإنجليزية والفرنسية')">
+                            <i class="fa-solid fa-language"></i>
+                            <h4>مترجم فوري كوني</h4>
+                            <p>التحويل التلقائي بين اللغات</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="input-row">
-                    <label for="imageUpload" class="action-btn" title="ارفع صورة"><i class="fas fa-camera"></i><input type="file" id="imageUpload" accept="image/*" style="display:none;"></label>
-                    <button id="audioRecordBtn" class="action-btn voice-btn" title="سجّل صوتك"><i class="fas fa-microphone" id="micIcon"></i></button>
-                    <input type="text" id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة...">
-                    <button id="sendBtn" class="send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+
+            <div class="input-area-container">
+                <div id="waveAnimation" class="wave-animation">
+                    <span class="stroke"></span><span class="stroke"></span><span class="stroke"></span><span class="stroke"></span><span class="stroke"></span>
                 </div>
-            </footer>
+                <div class="input-wrapper">
+                    <button id="imgBtn" class="embed-btn" title="إرفاق صورة"><i class="fa-solid fa-camera"></i></button>
+                    <button id="micBtn" class="embed-btn" title="تسجيل صوتي"><i class="fa-solid fa-microphone"></i></button>
+                    <input type="file" id="fileInput" accept="image/*" style="display:none;">
+                    <textarea id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة..." rows="1"></textarea>
+                    <button id="sendBtn" class="send-action-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+                <div id="previewContainer" class="preview-container"></div>
+            </div>
         </main>
     </div>
+
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-sliders"></i> الإعدادات المتقدمة</h3>
+                <button id="closeSettings" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label><i class="fa-solid fa-earth-americas"></i> اللهجة الافتراضية للردود العربية:</label>
+                    <select id="dialectSelect">
+                        <option value="السودانية">🇸🇩 السودانية</option>
+                        <option value="المصرية">🇪🇬 المصرية</option>
+                        <option value="الخليجية">🇸🇦 الخليجية</option>
+                        <option value="الفصحى">🌐 العربية الفصحى</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <button id="clearChatBtn" class="danger-btn-glow"><i class="fa-solid fa-trash-can"></i> مسح سجل الحوار الحالي</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
