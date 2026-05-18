@@ -217,7 +217,7 @@ if "last_processed_audio_size" not in st.session_state: st.session_state.last_pr
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار في منتصف الصفحة بنظافة مطلقة
+# عرض فقاعات الحوار
 chat_placeholder = st.container()
 with chat_placeholder:
     for index, message in enumerate(st.session_state.chat_history):
@@ -234,14 +234,13 @@ with chat_placeholder:
                 if st.button("🔊 Listen", key=f"btn_audio_{index}"):
                     st.session_state.play_audio_text = message['text']
 
-# --- 5. استقبال مدخلات المستخدم (نص، صوت، وصورة مضافة حديثاً) ---
+# --- 5. استقبال مدخلات المستخدم ---
 st.markdown(f"### {T['input_section']}")
 col_media1, col_media2 = st.columns(2)
 
 with col_media1:
     audio_file = st.audio_input(T["audio_label"], key=f"audio_input_{st.session_state.audio_session_key}")
 with col_media2:
-    # 📸 إضافة مكان رفع الصور الاحترافي المتوافق مع الجوالات والكمبيوتر
     user_image = st.file_uploader(T["image_label"], type=["png", "jpg", "jpeg"])
 
 user_text_input = st.chat_input(T["chat_placeholder"])
@@ -274,14 +273,13 @@ if final_query != "":
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     st.rerun()
 
-# --- 6. توليد واستقبال رد الـ AI المستقر (يدعم الرؤية والنصوص الذكية) ---
+# --- 6. توليد واستقبال الرد باستخدام موديل الرؤية الحديث المستقر ---
 if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
     latest_query = st.session_state.chat_history[-1]["text"]
     user_lang = identify_text_language(latest_query)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     client = Groq(api_key=GROQ_API_KEY)
 
-    # تجهيز أوامر التوجيه اللغوية الصارمة لكل لغة
     if user_lang == "fr":
         system_message = "You are an expert French Vision/Text AI. Analyze the prompt and any uploaded images. Reply ONLY and strictly in French dynamically."
     elif user_lang == "en":
@@ -295,14 +293,14 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
         with st.chat_message("assistant"):
             with st.spinner(T["spinner_web"]):
                 try:
-                    # 🌟 سيناريو (أ): في حال رفع المستخدم صورة فوتوغرافية
+                    # في حال رفع صورة
                     if user_image is not None:
                         image_bytes = user_image.read()
                         base64_image = base64.b64encode(image_bytes).decode('utf-8')
                         
-                        # استدعاء الموديل المخصص للرؤية وفهم الصور تلقائياً
+                        # 🚀 تم التحديث هنا إلى الموديل المدعوم والنشط والمستقر حالياً:
                         chat_completion = client.chat.completions.create(
-                            model="llama-3.2-11b-vision-preview",
+                            model="llama-3.2-11b-vision-instant",
                             messages=[
                                 {"role": "system", "content": system_message},
                                 {
@@ -318,7 +316,7 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
                         ai_response = chat_completion.choices[0].message.content.strip()
                         st.write(ai_response)
                     
-                    # 🌟 سيناريو (ب): في حال كان المدخل نصي أو صوتي فقط بدون صور
+                    # في حال كان نص أو صوت فقط
                     else:
                         messages_input = [("system", system_message)]
                         if len(latest_query.strip()) > 15:
