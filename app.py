@@ -14,7 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from groq import Groq 
 
 # --- 1. تهيئة وإعداد الجلسة واللغات المتعددة ---
-st.set_page_config(page_title="🎙️ Sawtak AI", page_icon="🎙️", layout="wide")
+st.set_page_config(page_title="🎙️ Sawtak AI Pro", page_icon="🎙️", layout="wide")
 
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
@@ -36,8 +36,8 @@ if not os.path.exists(USER_DOCS_DIR):
 
 LANG_DICT = {
     "ar": {
-        "title": "🎙️ صوتك | Sawtak AI",
-        "caption": "الجيل الجديد للمساعدات الذكية المتعددة الوسائط واللغات",
+        "title": "🎙️ صوتك | Sawtak AI Pro",
+        "caption": "الجيل الجديد للمساعدات الذكية واجهة المحترفين الفائقة",
         "sidebar_settings": "⚙️ الإعدادات واللغة",
         "app_lang": "لغة واجهة التطبيق:",
         "ai_dialect": "لهجة رد الذكاء الاصطناعي (للعربية):",
@@ -48,114 +48,77 @@ LANG_DICT = {
         "reset_section": "🗑️ إدارة الجلسة",
         "reset_btn": "مسح سجل الحوار بالكامل",
         "reset_success": "تم تصفير التطبيق بنجاح!",
-        "input_section": "🎙️ أدوات الإدخال والحديث والصور",
-        "audio_label": "تحدث الآن بلهجتك الطبيعية:",
-        "image_label": "📸 ارفع أو صوّر صورة (لحلها، ترجمتها، أو شرحها):",
-        "chat_placeholder": "أو اكتب سؤالك هنا يدوياً حول الصورة أو النص...",
+        "input_section": "💻 منصة التحكم الذكية بالمدخلات",
+        "audio_label": "🎙️ تحدث الآن بلهجتك الطبيعية مباشرة:",
+        "image_label": "📸 ارفع أو صوّر صورة (لتحليلها أو حلها):",
+        "chat_placeholder": "اكتب سؤالك هنا يدوياً حول الصورة أو النص...",
         "spinner_web": "🌐 جاري معالجة البيانات والتحقق منها...",
-        "spinner_whisper": "🎙️ جاري تفسير الكلام...",
+        "spinner_whisper": "🎙️ جاري تفسير الكلام وتحويله لنص...",
         "error_server": "حصل خطأ في الاتصال بالخادم الداخلي أو تجاوز الحد المسموح.",
         "pdf_empty": "لا توجد مستندات مرفوعة حالياً."
-    },
-    "en": {
-        "title": "🎙️ Sawtak AI",
-        "caption": "The next generation of multimodal AI assistants",
-        "sidebar_settings": "⚙️ Settings & Language",
-        "app_lang": "App Interface Language:",
-        "ai_dialect": "AI Arabic Dialect Response:",
-        "pdf_section": "🧠 Document Memory (PDF)",
-        "pdf_upload": "Upload your PDF files:",
-        "pdf_btn": "Update & Index Memory 🔄",
-        "pdf_success": "✅ Documents indexed successfully!",
-        "reset_section": "🗑️ Session Management",
-        "reset_btn": "Clear Entire Chat History",
-        "reset_success": "Application reset successfully!",
-        "input_section": "🎙️ Input Tools & Vision",
-        "audio_label": "Speak now in your natural language:",
-        "image_label": "📸 Upload or take a photo (to analyze, solve, or translate):",
-        "chat_placeholder": "Or type your question here manually...",
-        "spinner_web": "🌐 Processing data...",
-        "spinner_whisper": "🎙️ Translating and processing voice...",
-        "error_server": "An error occurred or rate limit exceeded.",
-        "pdf_empty": "No documents uploaded yet."
-    },
-    "fr": {
-        "title": "🎙️ Sawtak AI",
-        "caption": "La nouvelle génération d'assistants IA multilingues et multimodaux",
-        "sidebar_settings": "⚙️ Paramètres et Langue",
-        "app_lang": "Langue de l'interface:",
-        "ai_dialect": "Dialecte arabe de l'IA:",
-        "pdf_section": "🧠 Mémoire de Documents (PDF)",
-        "pdf_upload": "Déposez vos fichiers PDF ici:",
-        "pdf_btn": "Mettre à jour la mémoire 🔄",
-        "pdf_success": "✅ Documents indexés avec succès!",
-        "reset_section": "🗑️ Gestion de Session",
-        "reset_btn": "Effacer tout l'historique",
-        "reset_success": "Application réinitialisée avec succès!",
-        "input_section": "🎙️ Outils d'entrée & Vision",
-        "audio_label": "Parlez maintenant naturellement:",
-        "image_label": "📸 Téléchargez ou prenez une photo (pour analyser ou traduire):",
-        "chat_placeholder": "Ou tapez votre question ici manuellement...",
-        "spinner_web": "🌐 Traitement en cours...",
-        "spinner_whisper": "🎙️ Traitement de la voix en cours...",
-        "error_server": "Une erreur est survenue (Limite de requêtes atteinte).",
-        "pdf_empty": "Aucun document téléchargé pour le moment."
     }
 }
 
-# --- 2. تصاميم الواجهات الاحترافية CSS ---
+T = LANG_DICT["ar"] # الاعتماد على الواجهة العربية المحدثة
+
+# --- 2. هندسة الواجهة الفائقة للمحترفين بتصميم الـ Full-Stack (CSS) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0d1117 !important; color: #f3f4f6 !important; }
-    .chat-container { display: flex; flex-direction: column; gap: 24px; padding: 10px; margin-bottom: 20px; }
+    /* تهيئة الخلفية العامة وتثبيت نمط المنصات العالمية */
+    .stApp { background-color: #0b0f19 !important; color: #f3f4f6 !important; }
     
+    /* تصميم حاوية الشات الفاخرة */
+    .chat-container { display: flex; flex-direction: column; gap: 20px; padding: 15px; margin-bottom: 100px; }
+    
+    /* فقاعات مستخدم احترافية بنقوش انسيابية */
     .chat-bubble-user {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #ffffff !important; padding: 14px 20px; border-radius: 18px 18px 4px 18px;
-        align-self: flex-end; max-width: 75%; margin-left: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .chat-bubble-ai {
-        background-color: #161b22; color: #f3f4f6 !important; padding: 16px 22px;
-        border-radius: 18px 18px 18px 4px; align-self: flex-start; max-width: 75%;
-        margin-right: auto; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        color: #ffffff !important; padding: 14px 20px; border-radius: 20px 20px 4px 20px;
+        align-self: flex-end; max-width: 75%; margin-left: auto; 
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2); font-size: 1.05rem; line-height: 1.5;
     }
     
+    /* فقاعات الرد الذكي العميقة مع إطار دقيق */
+    .chat-bubble-ai {
+        background-color: #161b26; color: #f3f4f6 !important; padding: 16px 22px;
+        border-radius: 20px 20px 20px 4px; align-self: flex-start; max-width: 75%;
+        margin-right: auto; border: 1px solid #2d3748; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 1.05rem; line-height: 1.5;
+    }
+    
+    /* خط موجة النطق الصوتي */
     .waveform-sim { 
         height: 4px; background: linear-gradient(90deg, #00f2fe, #4facfe, #00f2fe); 
-        border-radius: 2px; margin-bottom: 15px;
+        border-radius: 2px; margin-bottom: 15px; animation: pulse 2s infinite;
     }
-    h1, h2, h3, p, span, label { color: #f3f4f6 !important; }
     
+    /* تحسين شكل الأزرار الجانبية */
     div.stButton > button {
-        background-color: #21262d !important; border: 1px solid #30363d !important;
-        color: #58a6ff !important; padding: 4px 12px !important; border-radius: 8px !important;
-        font-size: 0.85rem !important; transition: 0.2s;
+        background-color: #1e293b !important; border: 1px solid #334155 !important;
+        color: #38bdf8 !important; padding: 6px 16px !important; border-radius: 8px !important;
+        font-weight: 600; transition: 0.2s all;
     }
-    div.stButton > button:hover { background-color: #30363d !important; color: #58a6ff !important; }
+    div.stButton > button:hover { background-color: #334155 !important; border-color: #38bdf8 !important; color: #fff !important; }
+    
+    /* تعديل عناصر الإدخال لتبدو مدمجة */
+    .stChatInput { border-top: 1px solid #2d3748 !important; background-color: #0f172a !important; }
+    
+    h1, h2, h3, p, span, label { color: #f3f4f6 !important; font-family: 'Segoe UI', system-ui, sans-serif; }
     </style>
 """, unsafe_allow_html=True)
 
-# دالة فحص وكشف لغة النص المدخل بدقة عالية
 def identify_text_language(text):
     clean = text.strip().lower()
     if re.search(r'[\u0600-\u06FF]', clean): return "ar"
-    french_words = ["bonjour", "salut", "comment", "ca va", "ça va", "merci", "bonsoir", "oui", "non"]
-    for word in french_words:
-        if word in clean: return "fr"
-    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean): return "fr"
     if re.search(r'[a-zA-Z]', clean): return "en"
     return "ar"
 
-# --- 3. بناء التحكم الجانبي ودعم اللغات الدولي ---
+# --- 3. بناء التحكم الجانبي المحترف ---
 with st.sidebar:
-    st.title("⚙️ Settings / الإعدادات")
-    app_lang = st.selectbox("🌐 Interface Language / لغة الواجهة:", ["ar", "en", "fr"])
-    T = LANG_DICT[app_lang]
-    
-    st.subheader(T["sidebar_settings"])
+    st.title("⚙️ الإعدادات المتقدمة")
     dialect = st.selectbox(
         T["ai_dialect"],
-        ["العربية الفصحى بمصطلحات مبسطة", "اللهجة السودانية الدارجة", "اللهجة الخليجية", "اللهجة المصرية", "اللهجة الشامية"]
+        ["اللهجة السودانية الدارجة", "العربية الفصحى بمصطلحات مبسطة", "اللهجة المصرية", "اللهجة الخليجية", "اللهجة الشامية"]
     )
     
     st.markdown("---")
@@ -217,9 +180,10 @@ if "last_processed_audio_size" not in st.session_state: st.session_state.last_pr
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار
+# عرض فقاعات الحوار بالتصميم المحترف الجديد
 chat_placeholder = st.container()
 with chat_placeholder:
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for index, message in enumerate(st.session_state.chat_history):
         detected_lang = identify_text_language(message["text"])
         text_align = "right" if detected_lang == "ar" else "left"
@@ -231,11 +195,12 @@ with chat_placeholder:
             st.markdown(f"<div class='chat-bubble-ai' style='text-align: {text_align}; direction: {direction};'>{message['text']}</div>", unsafe_allow_html=True)
             col1, col2 = st.columns([2, 10])
             with col1:
-                if st.button("🔊 Listen", key=f"btn_audio_{index}"):
+                if st.button("🔊 استمع", key=f"btn_audio_{index}"):
                     st.session_state.play_audio_text = message['text']
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. استقبال مدخلات المستخدم ---
-st.markdown(f"### {T['input_section']}")
+# --- 5. أدوات إدخال الوسائط المتعددة (الـ Full-Stack المدمج) ---
+st.markdown(f"#### {T['input_section']}")
 col_media1, col_media2 = st.columns(2)
 
 with col_media1:
@@ -247,6 +212,7 @@ user_text_input = st.chat_input(T["chat_placeholder"])
 
 final_query = ""
 
+# منطق معالجة الصوت والـ Transcription عبر Whisper
 if user_text_input:
     final_query = user_text_input
 elif audio_file:
@@ -273,19 +239,17 @@ if final_query != "":
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     st.rerun()
 
-# --- 6. توليد واستقبال الرد باستخدام موديل الرؤية الحديث المستقر ---
+# --- 6. معالجة وتوليد الرد باستخدام موديل الرؤية النشط والمستقر ---
 if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
     latest_query = st.session_state.chat_history[-1]["text"]
     user_lang = identify_text_language(latest_query)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     client = Groq(api_key=GROQ_API_KEY)
 
-    if user_lang == "fr":
-        system_message = "You are an expert French Vision/Text AI. Analyze the prompt and any uploaded images. Reply ONLY and strictly in French dynamically."
-    elif user_lang == "en":
+    if user_lang == "en":
         system_message = "You are an expert English Vision/Text AI. Analyze the prompt and any uploaded images. Reply ONLY and strictly in English fluidly."
     else:
-        system_message = f"أنت خبير ذكاء اصطناعي متمكن. قم بتحليل المدخلات والصور المرفقة إن وجدت، وصغ ردك بالكامل وبشكل طبيعي جداً باللهجة التالية: ({dialect})."
+        system_message = f"أنت خبير ذكاء اصطناعي متمكن. قم بتحليل المدخلات والصور المرفقة إن وجدت، وصغ ردك بالكامل وبشكل طبيعي جداً وبطريقة تفاعلية مبهرة باللهجة التالية: ({dialect})."
 
     st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
     
@@ -293,12 +257,12 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
         with st.chat_message("assistant"):
             with st.spinner(T["spinner_web"]):
                 try:
-                    # في حال رفع صورة
+                    # حالة معالجة وجود صورة مرفوعة (Vision Mode)
                     if user_image is not None:
                         image_bytes = user_image.read()
                         base64_image = base64.b64encode(image_bytes).decode('utf-8')
                         
-                        # 🚀 تم التحديث هنا إلى الموديل المدعوم والنشط والمستقر حالياً:
+                        # 🚀 استخدام الموديل الفوري النشط والمستقر وتفادي الخطأ 400 تماماً:
                         chat_completion = client.chat.completions.create(
                             model="llama-3.2-11b-vision-instant",
                             messages=[
@@ -316,7 +280,7 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
                         ai_response = chat_completion.choices[0].message.content.strip()
                         st.write(ai_response)
                     
-                    # في حال كان نص أو صوت فقط
+                    # حالة النص أو الصوت فقط
                     else:
                         messages_input = [("system", system_message)]
                         if len(latest_query.strip()) > 15:
@@ -337,11 +301,11 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     st.rerun()
 
-# --- 7. تشغيل النطق الصوتي التلقائي المتغير ---
+# --- 7. تشغيل النطق الصوتي التلقائي الفوري وعالي الجودة ---
 if st.session_state.play_audio_text != "":
     clean_text = st.session_state.play_audio_text.replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
     text_lang = identify_text_language(st.session_state.play_audio_text)
-    lang_code = "fr-FR" if text_lang == "fr" else ("en-US" if text_lang == "en" else "ar-SA")
+    lang_code = "en-US" if text_lang == "en" else "ar-SA"
     
     js_universal_tts = f"""
     <script>
@@ -354,3 +318,4 @@ if st.session_state.play_audio_text != "":
     """
     st.components.v1.html(js_universal_tts, height=0)
     st.session_state.play_audio_text = ""
+
