@@ -33,7 +33,7 @@ if "play_audio_text" not in st.session_state:
 if not os.path.exists(USER_DOCS_DIR):
     os.makedirs(USER_DOCS_DIR)
 
-# قاموس الترجمة الكامل لواجهة التطبيق ليدعم جميع المستخدمين
+# قاموس ترجمة واجهة المستخدم الكامل
 LANG_DICT = {
     "ar": {
         "title": "🎙️ صوتك | Sawtak AI",
@@ -53,7 +53,7 @@ LANG_DICT = {
         "chat_placeholder": "أو اكتب سؤالك هنا يدوياً...",
         "spinner_web": "🌐 جاري جلب الحقائق اللحظية...",
         "spinner_whisper": "🎙️ جاري تفسير الكلام...",
-        "error_server": "حصل خطأ في الاتصال بالخادم الداخلي.",
+        "error_server": "حصل خطأ في الاتصال بالخادم الداخلي أو تجاوز الحد المسموح.",
         "pdf_empty": "لا توجد مستندات مرفوعة حالياً."
     },
     "en": {
@@ -74,7 +74,7 @@ LANG_DICT = {
         "chat_placeholder": "Or type your question here manually...",
         "spinner_web": "🌐 Fetching live facts from the web...",
         "spinner_whisper": "🎙️ Translating and processing voice...",
-        "error_server": "An error occurred while connecting to the server.",
+        "error_server": "An error occurred or rate limit exceeded.",
         "pdf_empty": "No documents uploaded yet."
     },
     "fr": {
@@ -95,12 +95,12 @@ LANG_DICT = {
         "chat_placeholder": "Ou tapez votre question ici manuellement...",
         "spinner_web": "🌐 Recherche d'informations en direct...",
         "spinner_whisper": "🎙️ Traitement de la voix en cours...",
-        "error_server": "Une erreur est survenue lors de la connexion au serveur.",
+        "error_server": "Une erreur est survenue (Limite de requêtes atteinte).",
         "pdf_empty": "Aucun document téléchargé pour le moment."
     }
 }
 
-# --- 2. تصميم الواجهة بـ CSS فخم ونظيف بدون ريسك الأكواد المكسورة ---
+# --- 2. تصاميم الواجهات الاحترافية CSS ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117 !important; color: #f3f4f6 !important; }
@@ -110,13 +110,11 @@ st.markdown("""
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: #ffffff !important; padding: 14px 20px; border-radius: 18px 18px 4px 18px;
         align-self: flex-end; max-width: 75%; margin-left: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        text-align: right;
     }
     .chat-bubble-ai {
         background-color: #161b22; color: #f3f4f6 !important; padding: 16px 22px;
         border-radius: 18px 18px 18px 4px; align-self: flex-start; max-width: 75%;
         margin-right: auto; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        text-align: right;
     }
     
     .waveform-sim { 
@@ -125,7 +123,6 @@ st.markdown("""
     }
     h1, h2, h3, p, span, label { color: #f3f4f6 !important; }
     
-    /* تنسيق أزرار الـ Streamlit الصوتية لتصبح صغيرة ومحاذية للجانب مثل ChatGPT */
     div.stButton > button {
         background-color: #21262d !important; border: 1px solid #30363d !important;
         color: #58a6ff !important; padding: 4px 12px !important; border-radius: 8px !important;
@@ -135,7 +132,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# دالة البحث المباشر المستقرة
+# دالة فحص وكشف لغة النص المدخل بدقة عالية جداً لمنع الخلط بين اللغات
+def identify_text_language(text):
+    # إزالة الرموز والمسافات للفحص الدقيق
+    clean = text.strip()
+    # فحص الحروف العربية
+    if re.search(r'[\u0600-\u06FF]', clean):
+        return "ar"
+    # فحص الحروف الفرنسية المميزة بالأكسنت
+    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean, re.IGNORECASE):
+        return "fr"
+    # فحص إذا كان إنجليزي فقط
+    if re.search(r'[a-zA-Z]', clean):
+        # موازنة طفيفة، إذا لم يكن فرنسياً فهو إنجليزي
+        return "en"
+    return "ar"
+
+# دالة البحث المباشر المستقرة لعام 2026
 def fetch_live_web_data(query):
     try:
         clean_query = re.sub(r'^(لا قصدي عن|لا قصدي|قصدي عن|قصدي|اسمع|اسمعني|تعديل|لا لا)\s*', '', query, flags=re.IGNORECASE).strip()
@@ -149,14 +162,6 @@ def fetch_live_web_data(query):
             if snippets: return "\n".join([re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3]])
     except Exception: pass
     return "No live web results available."
-
-# دالة كشف لغة النص برمجياً لتحديد نطق الـ TTS المناسب تلقائياً
-def detect_lang_code(text):
-    if re.search(r'[àâçéèêëîïôûùüÿæœ]', text, re.IGNORECASE):
-        return "fr-FR"
-    elif re.search(r'[a-zA-Z]', text) and not re.search(r'[\u0600-\u06FF]', text):
-        return "en-US"
-    return "ar-SA"
 
 # --- 3. بناء التحكم الجانبي ودعم اللغات الدولي ---
 with st.sidebar:
@@ -227,22 +232,25 @@ init_user_db()
 if "chat_history" not in st.session_state: st.session_state.chat_history = load_user_chat()
 if "last_processed_audio_size" not in st.session_state: st.session_state.last_processed_audio_size = 0
 
-# عنوان التطبيق الرئيسي
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار بشكل نظيف وآمن 100%
+# عرض فقاعات الحوار بشكل نظيف وآمن ومحاذاة ديناميكية حسب لغة النص
 chat_placeholder = st.container()
 with chat_placeholder:
     for index, message in enumerate(st.session_state.chat_history):
+        detected_lang = identify_text_language(message["text"])
+        # ضبط اتجاه النص (يمين لليسار للعربي، ويسار لليمين للفرنسي والإنجليزي)
+        text_align = "right" if detected_lang == "ar" else "left"
+        direction = "rtl" if detected_lang == "ar" else "ltr"
+        
         if message["role"] == "user":
-            st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-bubble-user' style='text-align: {text_align}; direction: {direction};'>{message['text']}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
-            # وضع زر الاستماع الصوتي النظيف الحقيقي أسفل الفقاعة مباشرة وبمحاذاة رائعة
+            st.markdown(f"<div class='chat-bubble-ai' style='text-align: {text_align}; direction: {direction};'>{message['text']}</div>", unsafe_allow_html=True)
             col1, col2 = st.columns([2, 10])
             with col1:
-                if st.button("🔊 Listen / استمع", key=f"btn_audio_{index}"):
+                if st.button("🔊 Listen", key=f"btn_audio_{index}"):
                     st.session_state.play_audio_text = message['text']
 
 # --- 5. استقبال مدخلات المستخدم العفوية (نص وصوت) ---
@@ -271,8 +279,8 @@ elif audio_file:
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
-                    language=None, # يتعرف تلقائياً على لغة المتحدث
-                    prompt="The speaker can switch between Arabic, English, or French naturally.",
+                    language=None, # التعرف التلقائي الذكي على اللغات
+                    prompt="The user may speak in Arabic, English, or French.",
                     response_format="text"
                 )
                 captured_text = str(transcription).strip()
@@ -281,15 +289,17 @@ elif audio_file:
             st.session_state.audio_session_key = str(uuid.uuid4())[:8]
     except Exception: pass
 
-# حفظ الرسالة الجديدة وإعادة تحميل الصفحة لضمان ظهور فقاعتها فوراً
 if final_query != "":
     save_user_message("user", final_query)
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     st.rerun()
 
-# --- 6. توليد واستقبال رد الـ AI المستقر ---
+# --- 6. توليد واستقبال رد الـ AI المستقر عالي الكفاءة ---
 if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
     latest_query = st.session_state.chat_history[-1]["text"]
+    
+    # 🌟 خطوة ذكية جداً: تحديد لغة سؤال المستخدم لتوجيه السيستم برومبت بدقة
+    user_lang = identify_text_language(latest_query)
     
     st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
     with st.spinner(T["spinner_web"]):
@@ -297,13 +307,27 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
 
     pdf_context = st.session_state.pdf_context_memory if st.session_state.pdf_context_memory else T["pdf_empty"]
 
-    system_message = (
-        "You are an advanced, elite multilingual AI assistant. You must detect the language of the user's question and reply perfectly in the exact same language (Arabic, English, or French).\n"
-        f"If the response language is Arabic, you must strictly formulate your output using the following dialect: ({dialect}).\n"
-        "Do not include any greeting phrases or preambles, answer the core of the question directly with clear formatting.\n\n"
-        f"Live Web Context (Year 2026):\n{live_web_context}\n\n"
-        f"Uploaded PDF Documents Context:\n{pdf_context}"
-    )
+    # صياغة السيستم برومبت بحيث يجبر الموديل على عدم خلط اللغات أو شرح اللغات الأجنبية بالعربية
+    if user_lang == "fr":
+        system_message = (
+            "You are an advanced AI assistant. The user is speaking French. You MUST reply ONLY in French.\n"
+            "Do not translate your response to Arabic, and do not write any Arabic characters. Reply directly and professionally in French.\n\n"
+            f"Context:\n{live_web_context}\n{pdf_context}"
+        )
+    elif user_lang == "en":
+        system_message = (
+            "You are an advanced AI assistant. The user is speaking English. You MUST reply ONLY in English.\n"
+            "Do not translate your response to Arabic. Reply directly and fluidly in English.\n\n"
+            f"Context:\n{live_web_context}\n{pdf_context}"
+        )
+    else:
+        system_message = (
+            "أنت مساعد ذكي متطور للغاية. المستخدم يتحدث معك باللغة العربية.\n"
+            f"يجب أن تكون صياغة ردك بالكامل وبشكل صارم باستخدام اللهجة التالية: ({dialect}).\n"
+            "أجب على جوهر السؤال مباشرة وبدون مقدمات ترحيبية زائدة وبأعلى درجة من الكفاءة.\n\n"
+            f"سياق الإنترنت المباشر (2026):\n{live_web_context}\n\n"
+            f"سياق ملفات الـ PDF المرفوعة:\n{pdf_context}"
+        )
 
     messages_input = [("system", system_message)]
     for msg in st.session_state.chat_history[-4:-1]:
@@ -313,6 +337,7 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     prompt_template = ChatPromptTemplate.from_messages(messages_input)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     
+    # ⚡ الانتقال للموديل السريع والمستقر لتجنب الـ Rate Limit 429 نهائياً
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
     
     with chat_placeholder:
@@ -328,10 +353,13 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     st.rerun()
 
-# --- 7. تشغيل النطق الصوتي الآمن والمستقر عند الضغط فقط ---
+# --- 7. تشغيل النطق الصوتي التلقائي المتغير ذكياً حسب لغة الرد ---
 if st.session_state.play_audio_text != "":
     clean_text = st.session_state.play_audio_text.replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
-    lang_code = detect_lang_code(st.session_state.play_audio_text)
+    
+    # تحديد لكنة النطق الصحيحة (فرنسا للفرنسي، أمريكا للإنجليزي، السعودية للعربي)
+    text_lang = identify_text_language(st.session_state.play_audio_text)
+    lang_code = "fr-FR" if text_lang == "fr" else ("en-US" if text_lang == "en" else "ar-SA")
     
     js_universal_tts = f"""
     <script>
@@ -343,4 +371,4 @@ if st.session_state.play_audio_text != "":
     </script>
     """
     st.components.v1.html(js_universal_tts, height=0)
-    st.session_state.play_audio_text = "" # تصفير المؤشر لمنع التكرار اللانهائي
+    st.session_state.play_audio_text = ""
