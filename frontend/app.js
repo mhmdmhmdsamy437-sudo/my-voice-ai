@@ -1,6 +1,6 @@
-const API_BASE = "https://my-voice-ai.onrender.com/api"; // رابط الباكيند الخاص بك المباشر
+const API_BASE = "https://my-voice-ai.onrender.com/api"; // رابط الباكيند المباشر الخاص بك
 
-// عناصر واجهة المستخدم
+// عناصر واجهة المستخدم الرئيسية
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsModal = document.getElementById("settingsModal");
 const closeSettings = document.getElementById("closeSettings");
@@ -11,33 +11,81 @@ const sendBtn = document.getElementById("sendBtn");
 const dialectSelect = document.getElementById("dialectSelect");
 const clearChatBtn = document.getElementById("clearChatBtn");
 
-// فتح وإغلاق إعدادات المودال الاحترافية
-settingsBtn.onclick = () => settingsModal.style.display = "flex";
-closeSettings.onclick = () => settingsModal.style.display = "none";
-window.onclick = (e) => { if(e.target === settingsModal) settingsModal.style.display = "none"; }
+// عناصر الصوت والصورة المدمجة الجديدة
+const micBtn = document.getElementById("micBtn");
+const imgBtn = document.getElementById("imgBtn");
+const fileInput = document.getElementById("fileInput");
+const waveAnimation = document.getElementById("waveAnimation");
+const previewContainer = document.getElementById("previewContainer");
 
-// وضع سؤال جاهز من البطاقات المقترحة
-function setPresetPrompt(promptText) {
-    userInput.value = promptText;
-    userInput.focus();
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
+// --- 1️⃣ تشغيل نافذة الإعدادات المنبثقة (Modal) ---
+if (settingsBtn && settingsModal && closeSettings) {
+    settingsBtn.onclick = () => { settingsModal.style.display = "flex"; };
+    closeSettings.onclick = () => { settingsModal.style.display = "none"; };
+    window.addEventListener("click", (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.style.display = "none";
+        }
+    });
 }
 
-// دالة إضافة الرسائل وعرضها في الشات بشكل أنيق
+// --- 2️⃣ دالة وضع نص جاهز من بطاقات الاقتراحات ---
+function setPresetPrompt(promptText) {
+    if (userInput) {
+        userInput.value = promptText;
+        userInput.focus();
+    }
+}
+
+// --- 3️⃣ دالة إضافة الرسائل في الشات ---
 function appendMessage(text, sender) {
-    // إخفاء شاشة البطاقات الترحيبية عند أول رسالة فوراً
     if (welcomeScreen) welcomeScreen.style.display = "none";
     
     const msgDiv = document.createElement("div");
     msgDiv.classList.add("message", sender === "user" ? "user" : "ai");
-    msgDiv.innerText = text;
+    
+    // إضافة زر الاستماع للنطق التلقائي إذا كان الرد من الذكاء الاصطناعي
+    if (sender === "ai") {
+        msgDiv.innerHTML = `<div>${text}</div><button class="tts-inline-btn" onclick="speakText(this, '${text.replace(/'/g, "\\'")}')"><i class="fa-solid fa-volume-high"></i> استمع</button>`;
+    } else {
+        msgDiv.innerText = text;
+    }
+    
     chatMessages.appendChild(msgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// إرسال النص الفوري للباكيند
+// --- 4️⃣ ميزة نطق النصوص الذكية لجميع اللغات ---
+function speakText(btn, text) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    
+    // البحث عن صوت عربي إذا كان النص يحتوي على حروف عربية
+    if (/[\u0600-\u06FF]/.test(text)) {
+        const arabicVoice = voices.find(v => v.lang.startsWith("ar"));
+        if (arabicVoice) utterance.voice = arabicVoice;
+        utterance.lang = "ar-EG";
+    } else {
+        utterance.lang = "en-US";
+    }
+    window.speechSynthesis.speak(utterance);
+}
+
+// --- 5️⃣ إرسال الرسائل النصية ---
 sendBtn.onclick = async () => {
     const text = userInput.value.trim();
-    if (!text) return;
+    if (!text && previewContainer.innerHTML === "") return;
+    
+    // إذا كان هناك صورة مرفوعة، نتوجه لقسم الفيجون
+    if (fileInput.files.length > 0) {
+        await sendVisionRequest(text);
+        return;
+    }
     
     appendMessage(text, "user");
     userInput.value = "";
@@ -52,18 +100,116 @@ sendBtn.onclick = async () => {
         if (data.status === "success") {
             appendMessage(data.response, "ai");
         } else {
-            appendMessage("عذراً، حدث خطأ في معالجة الرد.", "ai");
+            appendMessage("عذراً، واجهت مشكلة في معالجة النص.", "ai");
         }
     } catch (err) {
-        appendMessage("فشل الاتصال بالسيرفر الحي.", "ai");
+        appendMessage("تعذر الاتصال بالسيرفر السحابي.", "ai");
     }
 };
 
-// مسح المحادثة بالكامل وإعادة الشاشة الترحيبية
-clearChatBtn.onclick = () => {
-    chatMessages.innerHTML = '';
-    chatMessages.appendChild(welcomeScreen);
-    welcomeScreen.style.display = "flex";
-    settingsModal.style.display = "none";
-};
+// --- 6️⃣ إدارة وتشغيل مسجل الصوت المتقدم (المايك) ---
+if (micBtn) {
+    micBtn.onclick = async () => {
+        if (!isRecording) {
+            // بدء التسجيل
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (e) => { audioChunks.push(e.data); };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                    await sendAudioRequest(audioBlob);
+                };
+                
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.style.color = "#ef4444"; // تغيير لون المايك للأحمر
+                if (waveAnimation) waveAnimation.style.display = "flex"; // إظهار أنيميشن الموجات
+            } catch (err) {
+                alert("يرجى إعطاء صلاحية الوصول للمايكروفون أولاً.");
+            }
+        } else {
+            // إيقاف التسجيل وإرسال الصوت
+            mediaRecorder.stop();
+            isRecording = false;
+            micBtn.style.color = "";
+            if (waveAnimation) waveAnimation.style.display = "none"; // إخفاء الموجات
+        }
+    };
+}
+
+// دالة إرسال الملف الصوتي للباكيند
+async function sendAudioRequest(blob) {
+    appendMessage("🎤 جاري معالجة وتفسير صوتك...", "user");
+    const formData = new FormData();
+    formData.append("file", blob, "audio.wav");
+    formData.append("dialect", dialectSelect.value);
+    
+    try {
+        const res = await fetch(`${API_BASE}/chat/audio`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.status === "success") {
+            // تحديث رسالة المستخدم بالنص الذي تم التقاطه بدقة
+            chatMessages.lastChild.innerText = `🎤 ${data.user_speech}`;
+            appendMessage(data.response, "ai");
+        } else {
+            appendMessage("لم أتمكن من سماع الصوت بوضوح، حاول مجدداً.", "ai");
+        }
+    } catch (err) {
+        appendMessage("خطأ في الاتصال أثناء رفع الملف الصوتي.", "ai");
+    }
+}
+
+// --- 7️⃣ إدارة رفع وتحليل الصور (Vision) ---
+if (imgBtn && fileInput) {
+    imgBtn.onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            previewContainer.innerHTML = `<div class="img-preview-box"><img src="${URL.createObjectURL(file)}"><button onclick="clearImagePreview()">&times;</button></div>`;
+        }
+    };
+}
+
+function clearImagePreview() {
+    fileInput.value = "";
+    previewContainer.innerHTML = "";
+}
+
+async function sendVisionRequest(text) {
+    appendMessage(text ? text : "📸 تم رفع صورة للتحليل...", "user");
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("text", text);
+    formData.append("dialect", dialectSelect.value);
+    
+    clearImagePreview();
+    
+    try {
+        const res = await fetch(`${API_BASE}/chat/vision`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.status === "success") {
+            appendMessage(data.response, "ai");
+        } else {
+            appendMessage("فشل تحليل الصورة المرفوعة.", "ai");
+        }
+    } catch (err) {
+        appendMessage("خطأ في الاتصال بسيرفر الرؤية الذكي.", "ai");
+    }
+}
+
+// --- 8️⃣ زر مساح الحوار ---
+if (clearChatBtn) {
+    clearChatBtn.onclick = () => {
+        chatMessages.innerHTML = '';
+        if (welcomeScreen) {
+            chatMessages.appendChild(welcomeScreen);
+            welcomeScreen.style.display = "flex";
+        }
+        if (settingsModal) settingsModal.style.display = "none";
+    };
+}
 
