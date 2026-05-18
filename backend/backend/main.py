@@ -1,5 +1,4 @@
 import os
-import re
 import base64
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,29 +22,32 @@ class TextPrompt(BaseModel):
     text: str
     dialect: str
 
-# دالة ذكية ومطورة لإنشاء توجيه النظام بناءً على لهجة ولغة المستخدم تلقائياً
-def generate_system_prompt(preferred_dialect: str) -> str:
+def get_strict_system_prompt(dialect: str) -> str:
     return f"""
-    You are 'Sawtak AI' (صوتك), an advanced multilingual and multi-dialect AI assistant.
+    You are 'Sawtak AI' (صوتك), a premium multi-lingual conversational assistant.
     
-    CRITICAL RULES FOR LANGUAGE AND UNDERSTANDING:
-    1. AUTOMATIC LANGUAGE MATCHING: You must detect the language used by the user in their message (Arabic, English, French, etc.) and respond ONLY in that exact same language.
-    2. DIALECT FLEXIBILITY: The user might speak or write in standard language, local dialects, or general slang (especially Arabic dialects like Sudanese, Egyptian, Gulf, etc.). You must understand their intent perfectly regardless of any slang, local words, or typos.
-    3. TARGET STYLE: If the user writes in Arabic, try to craft your response using their preferred style/dialect if possible: ({preferred_dialect}). If they write in English, French, or any other language, reply naturally in that language.
-    4. Never mix languages in your response unless translating or using necessary technical terms. Keep your answers clear, helpful, and natural.
+    CRITICAL INSTRUCTIONS:
+    1. MATCH USER LANGUAGE: Detect the exact language the user is speaking or writing (Arabic, English, French, etc.) and respond ONLY in that same language.
+    2. NO MIXING: Do not mix languages. If the user writes in Arabic, respond 100% in Arabic. If they write in English, respond 100% in English.
+    3. DIALECT ADAPTATION: If the user communicates in Arabic, adapt your tone naturally to match their context or their preferred style/dialect: ({dialect}). Understand slang, local words, and general phrasing perfectly.
+    4. Keep answers highly interactive, professional, and clear.
     """
 
 @app.post("/api/chat/text")
 async def chat_text(prompt: TextPrompt):
     try:
-        system_msg = generate_system_prompt(prompt.dialect)
+        system_msg = get_strict_system_prompt(prompt.dialect)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": prompt.text}],
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt.text}
+            ],
             temperature=0.4
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/vision")
 async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: UploadFile = File(...)):
@@ -53,39 +55,56 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
         image_bytes = await file.read()
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
-        system_msg = generate_system_prompt(dialect)
-        user_content = []
-        user_content.append({"type": "text", "text": text if text else "Analyze this image and describe it in the user's language."})
-        user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
-        
+        system_msg = get_strict_system_prompt(dialect)
         completion = client.chat.completions.create(
             model="llama-3.2-11b-vision-instant",
             messages=[
                 {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_content}
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text if text else "Analyze and describe this image clearly."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ]
+                }
             ],
             temperature=0.3
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/audio")
 async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
     try:
         audio_bytes = await file.read()
         temp_filename = "temp_audio.wav"
-        with open(temp_filename, "wb") as f: f.write(audio_bytes)
+        with open(temp_filename, "wb") as f: 
+            f.write(audio_bytes)
+            
         with open(temp_filename, "rb") as audio_file:
-            transcription = client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", response_format="text")
+            transcription = client.audio.transcriptions.create(
+                file=audio_file, 
+                model="whisper-large-v3", 
+                response_format="text"
+            )
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
         
-        system_msg = generate_system_prompt(dialect)
+        system_msg = get_strict_system_prompt(dialect)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": captured_text}],
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": captured_text}
+            ],
             temperature=0.4
         )
-        return {"status": "success", "user_speech": captured_text, "response": completion.choices[0].message.content.strip()}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "status": "success", 
+            "user_speech": captured_text, 
+            "response": completion.choices[0].message.content.strip()
+        }
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
 
