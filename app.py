@@ -4,6 +4,7 @@ import uuid
 import streamlit as st
 import time
 import io
+import base64
 import urllib.request
 import urllib.parse
 import re  
@@ -36,7 +37,7 @@ if not os.path.exists(USER_DOCS_DIR):
 LANG_DICT = {
     "ar": {
         "title": "🎙️ صوتك | Sawtak AI",
-        "caption": "الجيل الجديد للمساعدات الذكية المتعددة اللغات",
+        "caption": "الجيل الجديد للمساعدات الذكية المتعددة الوسائط واللغات",
         "sidebar_settings": "⚙️ الإعدادات واللغة",
         "app_lang": "لغة واجهة التطبيق:",
         "ai_dialect": "لهجة رد الذكاء الاصطناعي (للعربية):",
@@ -47,17 +48,18 @@ LANG_DICT = {
         "reset_section": "🗑️ إدارة الجلسة",
         "reset_btn": "مسح سجل الحوار بالكامل",
         "reset_success": "تم تصفير التطبيق بنجاح!",
-        "input_section": "🎙️ أدوات الإدخال والحديث",
+        "input_section": "🎙️ أدوات الإدخال والحديث والصور",
         "audio_label": "تحدث الآن بلهجتك الطبيعية:",
-        "chat_placeholder": "أو اكتب سؤالك هنا يدوياً...",
-        "spinner_web": "🌐 جاري جلب الحقائق اللحظية...",
+        "image_label": "📸 ارفع أو صوّر صورة (لحلها، ترجمتها، أو شرحها):",
+        "chat_placeholder": "أو اكتب سؤالك هنا يدوياً حول الصورة أو النص...",
+        "spinner_web": "🌐 جاري معالجة البيانات والتحقق منها...",
         "spinner_whisper": "🎙️ جاري تفسير الكلام...",
         "error_server": "حصل خطأ في الاتصال بالخادم الداخلي أو تجاوز الحد المسموح.",
         "pdf_empty": "لا توجد مستندات مرفوعة حالياً."
     },
     "en": {
         "title": "🎙️ Sawtak AI",
-        "caption": "The next generation of multilingual AI assistants",
+        "caption": "The next generation of multimodal AI assistants",
         "sidebar_settings": "⚙️ Settings & Language",
         "app_lang": "App Interface Language:",
         "ai_dialect": "AI Arabic Dialect Response:",
@@ -68,17 +70,18 @@ LANG_DICT = {
         "reset_section": "🗑️ Session Management",
         "reset_btn": "Clear Entire Chat History",
         "reset_success": "Application reset successfully!",
-        "input_section": "🎙️ Input Tools",
+        "input_section": "🎙️ Input Tools & Vision",
         "audio_label": "Speak now in your natural language:",
+        "image_label": "📸 Upload or take a photo (to analyze, solve, or translate):",
         "chat_placeholder": "Or type your question here manually...",
-        "spinner_web": "🌐 Fetching live facts from the web...",
+        "spinner_web": "🌐 Processing data...",
         "spinner_whisper": "🎙️ Translating and processing voice...",
         "error_server": "An error occurred or rate limit exceeded.",
         "pdf_empty": "No documents uploaded yet."
     },
     "fr": {
         "title": "🎙️ Sawtak AI",
-        "caption": "La nouvelle génération d'assistants IA multilingues",
+        "caption": "La nouvelle génération d'assistants IA multilingues et multimodaux",
         "sidebar_settings": "⚙️ Paramètres et Langue",
         "app_lang": "Langue de l'interface:",
         "ai_dialect": "Dialecte arabe de l'IA:",
@@ -89,10 +92,11 @@ LANG_DICT = {
         "reset_section": "🗑️ Gestion de Session",
         "reset_btn": "Effacer tout l'historique",
         "reset_success": "Application réinitialisée avec succès!",
-        "input_section": "🎙️ Outils d'entrée",
+        "input_section": "🎙️ Outils d'entrée & Vision",
         "audio_label": "Parlez maintenant naturellement:",
+        "image_label": "📸 Téléchargez ou prenez une photo (pour analyser ou traduire):",
         "chat_placeholder": "Ou tapez votre question ici manuellement...",
-        "spinner_web": "🌐 Recherche d'informations en direct...",
+        "spinner_web": "🌐 Traitement en cours...",
         "spinner_whisper": "🎙️ Traitement de la voix en cours...",
         "error_server": "Une erreur est survenue (Limite de requêtes atteinte).",
         "pdf_empty": "Aucun document téléchargé pour le moment."
@@ -131,34 +135,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 🌐 دالة كشف وفحص اللغة الذكية والمحدثة لضمان التعرف التلقائي الكامل
+# دالة فحص وكشف لغة النص المدخل بدقة عالية
 def identify_text_language(text):
     clean = text.strip().lower()
-    
-    # 1. فحص الحروف العربية فوراً
-    if re.search(r'[\u0600-\u06FF]', clean):
-        return "ar"
-        
-    # 2. الكلمات الترحيبية والشهيرة بالفرنسية لقطع الشك باليقين
-    french_words = ["bonjour", "salut", "comment", "ca va", "ça va", "merci", "bonsoir", "oui", "non", "enchante", "enchanté"]
+    if re.search(r'[\u0600-\u06FF]', clean): return "ar"
+    french_words = ["bonjour", "salut", "comment", "ca va", "ça va", "merci", "bonsoir", "oui", "non"]
     for word in french_words:
-        if word in clean:
-            return "fr"
-            
-    # 3. فحص الرموز والأكسنتات الفرنسية الخاصة
-    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean):
-        return "fr"
-        
-    # 4. إذا كانت حروف لاتينية عادية ولم تطابق الفرنسي فهي إنجليزي بكل تأكيد
-    if re.search(r'[a-zA-Z]', clean):
-        return "en"
-        
+        if word in clean: return "fr"
+    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean): return "fr"
+    if re.search(r'[a-zA-Z]', clean): return "en"
     return "ar"
 
 # --- 3. بناء التحكم الجانبي ودعم اللغات الدولي ---
 with st.sidebar:
     st.title("⚙️ Settings / الإعدادات")
-    
     app_lang = st.selectbox("🌐 Interface Language / لغة الواجهة:", ["ar", "en", "fr"])
     T = LANG_DICT[app_lang]
     
@@ -196,7 +186,7 @@ with st.sidebar:
         time.sleep(0.5)
         st.rerun()
 
-# --- 4. إدارة قاعدة البيانات وسجل الرسائل ---
+# --- 4. إدارة سجل الرسائل وقاعدة البيانات ---
 def init_user_db():
     db_path = os.path.join(USER_DIR, "personal_chat.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -227,7 +217,7 @@ if "last_processed_audio_size" not in st.session_state: st.session_state.last_pr
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار بمحاذاة واتجاه نصوص ذكي لكل لغة على حدة
+# عرض فقاعات الحوار في منتصف الصفحة بنظافة مطلقة
 chat_placeholder = st.container()
 with chat_placeholder:
     for index, message in enumerate(st.session_state.chat_history):
@@ -244,9 +234,16 @@ with chat_placeholder:
                 if st.button("🔊 Listen", key=f"btn_audio_{index}"):
                     st.session_state.play_audio_text = message['text']
 
-# --- 5. استقبال مدخلات المستخدم ---
+# --- 5. استقبال مدخلات المستخدم (نص، صوت، وصورة مضافة حديثاً) ---
 st.markdown(f"### {T['input_section']}")
-audio_file = st.audio_input(T["audio_label"], key=f"audio_input_{st.session_state.audio_session_key}")
+col_media1, col_media2 = st.columns(2)
+
+with col_media1:
+    audio_file = st.audio_input(T["audio_label"], key=f"audio_input_{st.session_state.audio_session_key}")
+with col_media2:
+    # 📸 إضافة مكان رفع الصور الاحترافي المتوافق مع الجوالات والكمبيوتر
+    user_image = st.file_uploader(T["image_label"], type=["png", "jpg", "jpeg"])
+
 user_text_input = st.chat_input(T["chat_placeholder"])
 
 final_query = ""
@@ -257,26 +254,18 @@ elif audio_file:
     try:
         audio_bytes = audio_file.read()
         audio_size = len(audio_bytes)
-        
         if audio_size > 7000 and audio_size != st.session_state.last_processed_audio_size:
             st.session_state.last_processed_audio_size = audio_size
             with st.spinner(T["spinner_whisper"]):
                 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
                 client = Groq(api_key=GROQ_API_KEY)
-                
                 audio_buffer = io.BytesIO(audio_bytes)
                 audio_buffer.name = "input_audio.wav"
-                
                 transcription = client.audio.transcriptions.create(
-                    file=audio_buffer,
-                    model="whisper-large-v3",
-                    language=None, # التعرف التلقائي الصوتي الكامل للغات الثلاث
-                    prompt="The user may speak in Arabic, English, or French.",
-                    response_format="text"
+                    file=audio_buffer, model="whisper-large-v3", language=None, response_format="text"
                 )
                 captured_text = str(transcription).strip()
-                if len(captured_text) > 2:
-                    final_query = captured_text
+                if len(captured_text) > 2: final_query = captured_text
             st.session_state.audio_session_key = str(uuid.uuid4())[:8]
     except Exception: pass
 
@@ -285,65 +274,72 @@ if final_query != "":
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     st.rerun()
 
-# --- 6. توليد واستقبال الرد الذكي عالي الكفاءة ومنفصل اللغات ---
+# --- 6. توليد واستقبال رد الـ AI المستقر (يدعم الرؤية والنصوص الذكية) ---
 if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
     latest_query = st.session_state.chat_history[-1]["text"]
     user_lang = identify_text_language(latest_query)
-    
-    pdf_context = st.session_state.pdf_context_memory if st.session_state.pdf_context_memory else T["pdf_empty"]
-
-    # صياغة صارمة جداً ومفصولة هندسياً لتوجيه الـ AI للرد بنفس لغة المستخدم بدقة مطلقة
-    if user_lang == "fr":
-        system_message = (
-            "You are an elite, expert French AI Assistant. The user is communicating with you in French.\n"
-            "CRITICAL DIRECTIVE: You must reply ONLY and strictly in French. Do not output any Arabic or English text.\n"
-            "Respond directly, naturally, and fluidly in French matching the user's greeting or question.\n\n"
-            f"Context:\n{pdf_context}"
-        )
-    elif user_lang == "en":
-        system_message = (
-            "You are an elite, expert English AI Assistant. The user is communicating with you in English.\n"
-            "CRITICAL DIRECTIVE: You must reply ONLY and strictly in English. Do not output any Arabic or French text.\n"
-            "Respond directly, naturally, and fluidly in English matching the user's greeting or question.\n\n"
-            f"Context:\n{pdf_context}"
-        )
-    else:
-        system_message = (
-            "أنت مساعد ذكي متطور للغاية ومخصص لخدمة المستخدم باللغة العربية.\n"
-            f"يجب أن تكون صياغة ردك بالكامل وبشكل طبيعي ومباشر باستخدام اللهجة التالية فقط: ({dialect}).\n"
-            "ادخل في صلب الإجابة فوراً دون ديباجات أو مقدمات زائدة.\n\n"
-            f"سياق ملفات الـ PDF المرفوعة:\n{pdf_context}"
-        )
-
-    messages_input = [("system", system_message)]
-    
-    # لتفادي التداخل مع القضايا القديمة، إذا كان المدخل عبارة ترحيبية قصيرة نقوم بفصل السياق فوراً
-    if len(latest_query.strip()) > 15:
-        for msg in st.session_state.chat_history[-3:-1]:
-            messages_input.append((msg["role"], msg["text"]))
-            
-    messages_input.append(("user", latest_query))
-
-    prompt_template = ChatPromptTemplate.from_messages(messages_input)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
-    
-    # استخدام الموديل المستقر والسريع جداً لتجنب مشاكل نفاد الحصص والبطء
-    llm = ChatGroq(temperature=0.3, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+    client = Groq(api_key=GROQ_API_KEY)
+
+    # تجهيز أوامر التوجيه اللغوية الصارمة لكل لغة
+    if user_lang == "fr":
+        system_message = "You are an expert French Vision/Text AI. Analyze the prompt and any uploaded images. Reply ONLY and strictly in French dynamically."
+    elif user_lang == "en":
+        system_message = "You are an expert English Vision/Text AI. Analyze the prompt and any uploaded images. Reply ONLY and strictly in English fluidly."
+    else:
+        system_message = f"أنت خبير ذكاء اصطناعي متمكن. قم بتحليل المدخلات والصور المرفقة إن وجدت، وصغ ردك بالكامل وبشكل طبيعي جداً باللهجة التالية: ({dialect})."
+
+    st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
     
     with chat_placeholder:
         with st.chat_message("assistant"):
-            try:
-                response_stream = llm.stream(prompt_template.format_messages())
-                ai_response = st.write_stream(response_stream).strip()
-            except Exception as e:
-                ai_response = f"{T['error_server']}: {str(e)}"
-                st.write(ai_response)
-                
+            with st.spinner(T["spinner_web"]):
+                try:
+                    # 🌟 سيناريو (أ): في حال رفع المستخدم صورة فوتوغرافية
+                    if user_image is not None:
+                        image_bytes = user_image.read()
+                        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                        
+                        # استدعاء الموديل المخصص للرؤية وفهم الصور تلقائياً
+                        chat_completion = client.chat.completions.create(
+                            model="llama-3.2-11b-vision-preview",
+                            messages=[
+                                {"role": "system", "content": system_message},
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": latest_query if latest_query else "Analyze this image and reply in user language"},
+                                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                    ]
+                                }
+                            ],
+                            temperature=0.2
+                        )
+                        ai_response = chat_completion.choices[0].message.content.strip()
+                        st.write(ai_response)
+                    
+                    # 🌟 سيناريو (ب): في حال كان المدخل نصي أو صوتي فقط بدون صور
+                    else:
+                        messages_input = [("system", system_message)]
+                        if len(latest_query.strip()) > 15:
+                            for msg in st.session_state.chat_history[-3:-1]:
+                                messages_input.append((msg["role"], msg["text"]))
+                        messages_input.append(("user", latest_query))
+                        
+                        prompt_template = ChatPromptTemplate.from_messages(messages_input)
+                        llm = ChatGroq(temperature=0.3, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+                        response_stream = llm.stream(prompt_template.format_messages())
+                        ai_response = st.write_stream(response_stream).strip()
+                        
+                except Exception as e:
+                    ai_response = f"{T['error_server']}: {str(e)}"
+                    st.write(ai_response)
+                    
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     st.rerun()
 
-# --- 7. تشغيل النطق الصوتي التلقائي المتغير ذكياً حسب لغة الرد ---
+# --- 7. تشغيل النطق الصوتي التلقائي المتغير ---
 if st.session_state.play_audio_text != "":
     clean_text = st.session_state.play_audio_text.replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
     text_lang = identify_text_language(st.session_state.play_audio_text)
