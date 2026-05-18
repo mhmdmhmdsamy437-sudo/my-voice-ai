@@ -19,25 +19,30 @@ app.add_middleware(
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY)
 
-def identify_text_language(text: str) -> str:
-    clean = text.strip().lower()
-    if re.search(r'[\u0600-\u06FF]', clean): return "ar"
-    if re.search(r'[a-zA-Z]', clean): return "en"
-    return "ar"
-
 class TextPrompt(BaseModel):
     text: str
     dialect: str
 
+# دالة ذكية ومطورة لإنشاء توجيه النظام بناءً على لهجة ولغة المستخدم تلقائياً
+def generate_system_prompt(preferred_dialect: str) -> str:
+    return f"""
+    You are 'Sawtak AI' (صوتك), an advanced multilingual and multi-dialect AI assistant.
+    
+    CRITICAL RULES FOR LANGUAGE AND UNDERSTANDING:
+    1. AUTOMATIC LANGUAGE MATCHING: You must detect the language used by the user in their message (Arabic, English, French, etc.) and respond ONLY in that exact same language.
+    2. DIALECT FLEXIBILITY: The user might speak or write in standard language, local dialects, or general slang (especially Arabic dialects like Sudanese, Egyptian, Gulf, etc.). You must understand their intent perfectly regardless of any slang, local words, or typos.
+    3. TARGET STYLE: If the user writes in Arabic, try to craft your response using their preferred style/dialect if possible: ({preferred_dialect}). If they write in English, French, or any other language, reply naturally in that language.
+    4. Never mix languages in your response unless translating or using necessary technical terms. Keep your answers clear, helpful, and natural.
+    """
+
 @app.post("/api/chat/text")
 async def chat_text(prompt: TextPrompt):
     try:
-        user_lang = identify_text_language(prompt.text)
-        system_msg = f"أنت مساعد ذكي متمكن. صغ ردك بالكامل باللهجة التالية: ({prompt.dialect})." if user_lang == "ar" else "You are an elite English AI. Reply ONLY in English."
+        system_msg = generate_system_prompt(prompt.dialect)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": prompt.text}],
-            temperature=0.3
+            temperature=0.4
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -47,21 +52,19 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
     try:
         image_bytes = await file.read()
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        user_lang = identify_text_language(text) if text else "ar"
-        system_msg = f"أنت خبير تحليل صور. صغ شرحك بالكامل باللهجة: ({dialect})." if user_lang == "ar" else "You are an expert English Vision AI. Analyze and reply in English."
+        
+        system_msg = generate_system_prompt(dialect)
+        user_content = []
+        user_content.append({"type": "text", "text": text if text else "Analyze this image and describe it in the user's language."})
+        user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+        
         completion = client.chat.completions.create(
             model="llama-3.2-11b-vision-instant",
             messages=[
                 {"role": "system", "content": system_msg},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": text if text else "Analyze this image"},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
+                {"role": "user", "content": user_content}
             ],
-            temperature=0.2
+            temperature=0.3
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -76,12 +79,12 @@ async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
             transcription = client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", response_format="text")
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
-        user_lang = identify_text_language(captured_text)
-        system_msg = f"أنت مساعد ذكي متمكن. صغ ردك بالكامل باللهجة التالية: ({dialect})." if user_lang == "ar" else "You are an elite English AI. Reply ONLY in English."
+        
+        system_msg = generate_system_prompt(dialect)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": system_msg}, {"role": "user", "content": captured_text}],
-            temperature=0.3
+            temperature=0.4
         )
         return {"status": "success", "user_speech": captured_text, "response": completion.choices[0].message.content.strip()}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
