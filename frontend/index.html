@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ae">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sawtak AI Full-Stack</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <h2>⚙️ الإعدادات المتقدمة</h2>
+            <div class="control-group">
+                <label>لهجة رد الـ AI:</label>
+                <select id="dialectSelect">
+                    <option value="لهجة سودانية دارجة">السودانية 🇸🇩</option>
+                    <option value="العربية الفصحى بمصطلحات مبسطة">الفصحى 🌐</option>
+                    <option value="اللهجة المصرية">المصرية 🇪🇬</option>
+                    <option value="اللهجة الخليجية">الخليجية 🇸🇦</option>
+                </select>
+            </div>
+            <button id="clearChatBtn" class="danger-btn"><i class="fas fa-trash"></i> مسح الحوار</button>
+        </aside>
+        <main class="chat-area">
+            <header class="chat-header">
+                <h1>🎙️ صوتك AI <span class="badge">Pro Full-Stack</span></h1>
+                <p>واجهة أمامية منفصلة فائقة السرعة والاستجابة</p>
+            </header>
+            <div class="messages-container" id="messagesContainer"></div>
+            <footer class="input-footer">
+                <div class="preview-box" id="previewBox" style="display: none;">
+                    <span id="previewName"></span>
+                    <button id="removeFileBtn"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="input-row">
+                    <label for="imageUpload" class="action-btn" title="ارفع صورة"><i class="fas fa-camera"></i><input type="file" id="imageUpload" accept="image/*" style="display:none;"></label>
+                    <button id="audioRecordBtn" class="action-btn voice-btn" title="سجّل صوتك"><i class="fas fa-microphone" id="micIcon"></i></button>
+                    <input type="text" id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة...">
+                    <button id="sendBtn" class="send-btn"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
+
