@@ -33,7 +33,6 @@ if "play_audio_text" not in st.session_state:
 if not os.path.exists(USER_DOCS_DIR):
     os.makedirs(USER_DOCS_DIR)
 
-# قاموس ترجمة واجهة المستخدم الكامل
 LANG_DICT = {
     "ar": {
         "title": "🎙️ صوتك | Sawtak AI",
@@ -132,36 +131,29 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# دالة فحص وكشف لغة النص المدخل بدقة عالية جداً لمنع الخلط بين اللغات
+# 🌐 دالة كشف وفحص اللغة الذكية والمحدثة لضمان التعرف التلقائي الكامل
 def identify_text_language(text):
-    # إزالة الرموز والمسافات للفحص الدقيق
-    clean = text.strip()
-    # فحص الحروف العربية
+    clean = text.strip().lower()
+    
+    # 1. فحص الحروف العربية فوراً
     if re.search(r'[\u0600-\u06FF]', clean):
         return "ar"
-    # فحص الحروف الفرنسية المميزة بالأكسنت
-    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean, re.IGNORECASE):
+        
+    # 2. الكلمات الترحيبية والشهيرة بالفرنسية لقطع الشك باليقين
+    french_words = ["bonjour", "salut", "comment", "ca va", "ça va", "merci", "bonsoir", "oui", "non", "enchante", "enchanté"]
+    for word in french_words:
+        if word in clean:
+            return "fr"
+            
+    # 3. فحص الرموز والأكسنتات الفرنسية الخاصة
+    if re.search(r'[àâçéèêëîïôûùüÿæœ]', clean):
         return "fr"
-    # فحص إذا كان إنجليزي فقط
+        
+    # 4. إذا كانت حروف لاتينية عادية ولم تطابق الفرنسي فهي إنجليزي بكل تأكيد
     if re.search(r'[a-zA-Z]', clean):
-        # موازنة طفيفة، إذا لم يكن فرنسياً فهو إنجليزي
         return "en"
+        
     return "ar"
-
-# دالة البحث المباشر المستقرة لعام 2026
-def fetch_live_web_data(query):
-    try:
-        clean_query = re.sub(r'^(لا قصدي عن|لا قصدي|قصدي عن|قصدي|اسمع|اسمعني|تعديل|لا لا)\s*', '', query, flags=re.IGNORECASE).strip()
-        if not clean_query: clean_query = query
-        encoded_query = urllib.parse.quote(clean_query)
-        url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            html_content = response.read().decode('utf-8')
-            snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)<\/a>', html_content, re.DOTALL)
-            if snippets: return "\n".join([re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:3]])
-    except Exception: pass
-    return "No live web results available."
 
 # --- 3. بناء التحكم الجانبي ودعم اللغات الدولي ---
 with st.sidebar:
@@ -235,12 +227,11 @@ if "last_processed_audio_size" not in st.session_state: st.session_state.last_pr
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار بشكل نظيف وآمن ومحاذاة ديناميكية حسب لغة النص
+# عرض فقاعات الحوار بمحاذاة واتجاه نصوص ذكي لكل لغة على حدة
 chat_placeholder = st.container()
 with chat_placeholder:
     for index, message in enumerate(st.session_state.chat_history):
         detected_lang = identify_text_language(message["text"])
-        # ضبط اتجاه النص (يمين لليسار للعربي، ويسار لليمين للفرنسي والإنجليزي)
         text_align = "right" if detected_lang == "ar" else "left"
         direction = "rtl" if detected_lang == "ar" else "ltr"
         
@@ -253,7 +244,7 @@ with chat_placeholder:
                 if st.button("🔊 Listen", key=f"btn_audio_{index}"):
                     st.session_state.play_audio_text = message['text']
 
-# --- 5. استقبال مدخلات المستخدم العفوية (نص وصوت) ---
+# --- 5. استقبال مدخلات المستخدم ---
 st.markdown(f"### {T['input_section']}")
 audio_file = st.audio_input(T["audio_label"], key=f"audio_input_{st.session_state.audio_session_key}")
 user_text_input = st.chat_input(T["chat_placeholder"])
@@ -279,7 +270,7 @@ elif audio_file:
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
-                    language=None, # التعرف التلقائي الذكي على اللغات
+                    language=None, # التعرف التلقائي الصوتي الكامل للغات الثلاث
                     prompt="The user may speak in Arabic, English, or French.",
                     response_format="text"
                 )
@@ -294,51 +285,50 @@ if final_query != "":
     st.session_state.chat_history.append({"role": "user", "text": final_query})
     st.rerun()
 
-# --- 6. توليد واستقبال رد الـ AI المستقر عالي الكفاءة ---
+# --- 6. توليد واستقبال الرد الذكي عالي الكفاءة ومنفصل اللغات ---
 if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
     latest_query = st.session_state.chat_history[-1]["text"]
-    
-    # 🌟 خطوة ذكية جداً: تحديد لغة سؤال المستخدم لتوجيه السيستم برومبت بدقة
     user_lang = identify_text_language(latest_query)
     
-    st.markdown('<div class="waveform-sim"></div>', unsafe_allow_html=True)
-    with st.spinner(T["spinner_web"]):
-        live_web_context = fetch_live_web_data(latest_query)
-
     pdf_context = st.session_state.pdf_context_memory if st.session_state.pdf_context_memory else T["pdf_empty"]
 
-    # صياغة السيستم برومبت بحيث يجبر الموديل على عدم خلط اللغات أو شرح اللغات الأجنبية بالعربية
+    # صياغة صارمة جداً ومفصولة هندسياً لتوجيه الـ AI للرد بنفس لغة المستخدم بدقة مطلقة
     if user_lang == "fr":
         system_message = (
-            "You are an advanced AI assistant. The user is speaking French. You MUST reply ONLY in French.\n"
-            "Do not translate your response to Arabic, and do not write any Arabic characters. Reply directly and professionally in French.\n\n"
-            f"Context:\n{live_web_context}\n{pdf_context}"
+            "You are an elite, expert French AI Assistant. The user is communicating with you in French.\n"
+            "CRITICAL DIRECTIVE: You must reply ONLY and strictly in French. Do not output any Arabic or English text.\n"
+            "Respond directly, naturally, and fluidly in French matching the user's greeting or question.\n\n"
+            f"Context:\n{pdf_context}"
         )
     elif user_lang == "en":
         system_message = (
-            "You are an advanced AI assistant. The user is speaking English. You MUST reply ONLY in English.\n"
-            "Do not translate your response to Arabic. Reply directly and fluidly in English.\n\n"
-            f"Context:\n{live_web_context}\n{pdf_context}"
+            "You are an elite, expert English AI Assistant. The user is communicating with you in English.\n"
+            "CRITICAL DIRECTIVE: You must reply ONLY and strictly in English. Do not output any Arabic or French text.\n"
+            "Respond directly, naturally, and fluidly in English matching the user's greeting or question.\n\n"
+            f"Context:\n{pdf_context}"
         )
     else:
         system_message = (
-            "أنت مساعد ذكي متطور للغاية. المستخدم يتحدث معك باللغة العربية.\n"
-            f"يجب أن تكون صياغة ردك بالكامل وبشكل صارم باستخدام اللهجة التالية: ({dialect}).\n"
-            "أجب على جوهر السؤال مباشرة وبدون مقدمات ترحيبية زائدة وبأعلى درجة من الكفاءة.\n\n"
-            f"سياق الإنترنت المباشر (2026):\n{live_web_context}\n\n"
+            "أنت مساعد ذكي متطور للغاية ومخصص لخدمة المستخدم باللغة العربية.\n"
+            f"يجب أن تكون صياغة ردك بالكامل وبشكل طبيعي ومباشر باستخدام اللهجة التالية فقط: ({dialect}).\n"
+            "ادخل في صلب الإجابة فوراً دون ديباجات أو مقدمات زائدة.\n\n"
             f"سياق ملفات الـ PDF المرفوعة:\n{pdf_context}"
         )
 
     messages_input = [("system", system_message)]
-    for msg in st.session_state.chat_history[-4:-1]:
-        messages_input.append((msg["role"], msg["text"]))
+    
+    # لتفادي التداخل مع القضايا القديمة، إذا كان المدخل عبارة ترحيبية قصيرة نقوم بفصل السياق فوراً
+    if len(latest_query.strip()) > 15:
+        for msg in st.session_state.chat_history[-3:-1]:
+            messages_input.append((msg["role"], msg["text"]))
+            
     messages_input.append(("user", latest_query))
 
     prompt_template = ChatPromptTemplate.from_messages(messages_input)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     
-    # ⚡ الانتقال للموديل السريع والمستقر لتجنب الـ Rate Limit 429 نهائياً
-    llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+    # استخدام الموديل المستقر والسريع جداً لتجنب مشاكل نفاد الحصص والبطء
+    llm = ChatGroq(temperature=0.3, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
     
     with chat_placeholder:
         with st.chat_message("assistant"):
@@ -356,8 +346,6 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
 # --- 7. تشغيل النطق الصوتي التلقائي المتغير ذكياً حسب لغة الرد ---
 if st.session_state.play_audio_text != "":
     clean_text = st.session_state.play_audio_text.replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
-    
-    # تحديد لكنة النطق الصحيحة (فرنسا للفرنسي، أمريكا للإنجليزي، السعودية للعربي)
     text_lang = identify_text_language(st.session_state.play_audio_text)
     lang_code = "fr-FR" if text_lang == "fr" else ("en-US" if text_lang == "en" else "ar-SA")
     
