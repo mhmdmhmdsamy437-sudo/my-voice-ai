@@ -83,18 +83,18 @@ async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
             f.write(audio_bytes)
            
         with open(temp_filename, "rb") as audio_file:
-            # تم إضافة 'prompt' هنا لتوجيه المحرك لغوياً وإجباره على التفسير بـ (العربية، الإنجليزية، الفرنسية) فقط
+            # هنا التعديل الجذري: إجبار الموديل على إخراج الحروف العربية الفصحى والعاميات مباشرة ومنع اللاتيني
             transcription = client.audio.transcriptions.create(
                 file=audio_file,
                 model="whisper-large-v3",
                 response_format="text",
-                prompt="مرحبا، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ Hello, how can I help you today? Bonjour, comment puis-je vous aider?"
+                language="ar",
+                prompt="السلام عليكم، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ كيف الطقس اليوم؟"
             )
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
         
-        # حماية إضافية في حال كان الملف فارغاً تماماً
-        if not captured_text:
+        if not captured_text or captured_text.isspace():
             return {"status": "success", "user_speech": "...", "response": "لم أتمكن من سماع أي صوت بوضوح، أرجو المحاولة مرة أخرى بقرب المايك."}
        
         system_msg = get_strict_system_prompt(dialect)
