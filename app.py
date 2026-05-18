@@ -27,6 +27,9 @@ USER_DOCS_DIR = os.path.join(USER_DIR, "temp_docs")
 if "pdf_context_memory" not in st.session_state:
     st.session_state.pdf_context_memory = ""
 
+if "play_audio_text" not in st.session_state:
+    st.session_state.play_audio_text = ""
+
 if not os.path.exists(USER_DOCS_DIR):
     os.makedirs(USER_DOCS_DIR)
 
@@ -97,38 +100,38 @@ LANG_DICT = {
     }
 }
 
-# --- 2. تصميم الواجهة بـ CSS فخم يطابق روح الأناقة في ChatGPT ---
+# --- 2. تصميم الواجهة بـ CSS فخم ونظيف بدون ريسك الأكواد المكسورة ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117 !important; color: #f3f4f6 !important; }
-    .chat-container { display: flex; flex-direction: column; gap: 20px; padding: 10px; margin-bottom: 20px; }
+    .chat-container { display: flex; flex-direction: column; gap: 24px; padding: 10px; margin-bottom: 20px; }
     
-    /* فقاعات الحوار المودرن */
     .chat-bubble-user {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: #ffffff !important; padding: 14px 20px; border-radius: 18px 18px 4px 18px;
-        align-self: flex-end; max-width: 80%; margin-left: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        align-self: flex-end; max-width: 75%; margin-left: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        text-align: right;
     }
     .chat-bubble-ai {
         background-color: #161b22; color: #f3f4f6 !important; padding: 16px 22px;
-        border-radius: 18px 18px 18px 4px; align-self: flex-start; max-width: 80%;
-        margin-right: auto; border: 1px solid #30363d; position: relative;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-radius: 18px 18px 18px 4px; align-self: flex-start; max-width: 75%;
+        margin-right: auto; border: 1px solid #30363d; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        text-align: right;
     }
-    
-    /* تصميم الزر الصوتي المخفي الذكي ليوضع داخل الفقاعة مثل التطبيقات العالمية */
-    .tts-player-btn {
-        background: #21262d; border: 1px solid #30363d; color: #58a6ff !important;
-        padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
-        display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; transition: 0.2s;
-    }
-    .tts-player-btn:hover { background: #30363d; color: #58a6ff !important; }
     
     .waveform-sim { 
         height: 4px; background: linear-gradient(90deg, #00f2fe, #4facfe, #00f2fe); 
         border-radius: 2px; margin-bottom: 15px;
     }
     h1, h2, h3, p, span, label { color: #f3f4f6 !important; }
+    
+    /* تنسيق أزرار الـ Streamlit الصوتية لتصبح صغيرة ومحاذية للجانب مثل ChatGPT */
+    div.stButton > button {
+        background-color: #21262d !important; border: 1px solid #30363d !important;
+        color: #58a6ff !important; padding: 4px 12px !important; border-radius: 8px !important;
+        font-size: 0.85rem !important; transition: 0.2s;
+    }
+    div.stButton > button:hover { background-color: #30363d !important; color: #58a6ff !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -149,21 +152,18 @@ def fetch_live_web_data(query):
 
 # دالة كشف لغة النص برمجياً لتحديد نطق الـ TTS المناسب تلقائياً
 def detect_lang_code(text):
-    # إذا كان النص يحتوي على حروف فرنسية مميزة
     if re.search(r'[àâçéèêëîïôûùüÿæœ]', text, re.IGNORECASE):
         return "fr-FR"
-    # إذا كان النص يحتوي على حروف إنجليزية وليس به حروف عربية
     elif re.search(r'[a-zA-Z]', text) and not re.search(r'[\u0600-\u06FF]', text):
         return "en-US"
     return "ar-SA"
 
 # --- 3. بناء التحكم الجانبي ودعم اللغات الدولي ---
 with st.sidebar:
-    st.title("⚙️ Control Panel")
+    st.title("⚙️ Settings / الإعدادات")
     
-    # اختيار لغة واجهة التطبيق
-    app_lang = st.selectbox("🌐 App Language / لغة التطبيق:", ["ar", "en", "fr"])
-    T = LANG_DICT[app_lang] # جلب نصوص الواجهة المختارة
+    app_lang = st.selectbox("🌐 Interface Language / لغة الواجهة:", ["ar", "en", "fr"])
+    T = LANG_DICT[app_lang]
     
     st.subheader(T["sidebar_settings"])
     dialect = st.selectbox(
@@ -231,33 +231,19 @@ if "last_processed_audio_size" not in st.session_state: st.session_state.last_pr
 st.title(T["title"])
 st.caption(T["caption"])
 
-# عرض فقاعات الحوار مع زر الصوت المدمج بداخل الـ HTML بشكل احترافي رائع
+# عرض فقاعات الحوار بشكل نظيف وآمن 100%
 chat_placeholder = st.container()
 with chat_placeholder:
-    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
     for index, message in enumerate(st.session_state.chat_history):
         if message["role"] == "user":
             st.markdown(f"<div class='chat-bubble-user'>{message['text']}</div>", unsafe_allow_html=True)
         else:
-            # تنظيف النص وتجهيزه للجافا سكريبت لمنع أي توقف
-            clean_msg = message['text'].replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
-            lang_code = detect_lang_code(message['text'])
-            
-            # بناء كود الـ HTML المخصص لدمج زر الصوت الصغير الأنيق أسفل نص الرد مباشرة
-            ai_html = f"""
-            <div class='chat-bubble-ai'>
-                <div>{message['text']}</div>
-                <button class='tts-player-btn' onclick="
-                    window.speechSynthesis.cancel();
-                    var msg = new SpeechSynthesisUtterance('{clean_msg}');
-                    msg.lang = '{lang_code}';
-                    msg.rate = 1.0;
-                    window.speechSynthesis.speak(msg);
-                ">🔊 Listen / استمع</button>
-            </div>
-            """
-            st.markdown(ai_html, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-bubble-ai'>{message['text']}</div>", unsafe_allow_html=True)
+            # وضع زر الاستماع الصوتي النظيف الحقيقي أسفل الفقاعة مباشرة وبمحاذاة رائعة
+            col1, col2 = st.columns([2, 10])
+            with col1:
+                if st.button("🔊 Listen / استمع", key=f"btn_audio_{index}"):
+                    st.session_state.play_audio_text = message['text']
 
 # --- 5. استقبال مدخلات المستخدم العفوية (نص وصوت) ---
 st.markdown(f"### {T['input_section']}")
@@ -285,7 +271,7 @@ elif audio_file:
                 transcription = client.audio.transcriptions.create(
                     file=audio_buffer,
                     model="whisper-large-v3",
-                    language=None,  # جعل الأداة تتعرف تلقائياً على لغة المتحدث (عربي، فرنسي، إنجليزي)
+                    language=None, # يتعرف تلقائياً على لغة المتحدث
                     prompt="The speaker can switch between Arabic, English, or French naturally.",
                     response_format="text"
                 )
@@ -311,7 +297,6 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
 
     pdf_context = st.session_state.pdf_context_memory if st.session_state.pdf_context_memory else T["pdf_empty"]
 
-    # صياغة توجيه احترافي عالمي يدعم اللغات الثلاث بطلاقة تامة
     system_message = (
         "You are an advanced, elite multilingual AI assistant. You must detect the language of the user's question and reply perfectly in the exact same language (Arabic, English, or French).\n"
         f"If the response language is Arabic, you must strictly formulate your output using the following dialect: ({dialect}).\n"
@@ -321,7 +306,6 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     )
 
     messages_input = [("system", system_message)]
-    # جلب الحوار السابق لمنع التشتت
     for msg in st.session_state.chat_history[-4:-1]:
         messages_input.append((msg["role"], msg["text"]))
     messages_input.append(("user", latest_query))
@@ -329,7 +313,6 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     prompt_template = ChatPromptTemplate.from_messages(messages_input)
     GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.environ.get("GROQ_API_KEY", ""))
     
-    # نستخدم الموديل المستقر الذكي لتفادي مشاكل الحظر المؤقت والبطء
     llm = ChatGroq(temperature=0.2, groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
     
     with chat_placeholder:
@@ -344,3 +327,20 @@ if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] =
     save_user_message("ai", ai_response)
     st.session_state.chat_history.append({"role": "ai", "text": ai_response})
     st.rerun()
+
+# --- 7. تشغيل النطق الصوتي الآمن والمستقر عند الضغط فقط ---
+if st.session_state.play_audio_text != "":
+    clean_text = st.session_state.play_audio_text.replace("'", "\\'").replace("\n", " ").replace('"', '\\"')
+    lang_code = detect_lang_code(st.session_state.play_audio_text)
+    
+    js_universal_tts = f"""
+    <script>
+    window.speechSynthesis.cancel();
+    var msg = new SpeechSynthesisUtterance('{clean_text}');
+    msg.lang = '{lang_code}';
+    msg.rate = 1.0;
+    window.speechSynthesis.speak(msg);
+    </script>
+    """
+    st.components.v1.html(js_universal_tts, height=0)
+    st.session_state.play_audio_text = "" # تصفير المؤشر لمنع التكرار اللانهائي
