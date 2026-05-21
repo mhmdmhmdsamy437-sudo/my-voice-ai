@@ -3,3 +3,4 @@ uvicorn
 groq
 python-multipart
 gunicorn
+supabase==2.4.0
