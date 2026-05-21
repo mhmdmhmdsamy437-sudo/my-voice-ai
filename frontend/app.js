@@ -1,9 +1,9 @@
 import { supabase } from './supabaseClient.js';
 
-// رابط السيرفر السحابي الخاص بك على Render (تأكد أنه ينتهي بـ / بدون إضافة api)
+// رابط السيرفر السحابي الخاص بك على Render
 const BACKEND_URL = 'https://my-voice-ai.onrender.com';
 
-// استدعاء عناصر الواجهة
+// استدعاء عناصر الواجهة بدقة متناهية متوافقة مع الـ HTML
 const authNavBtn = document.getElementById('auth-nav-btn');
 const authModal = document.getElementById('auth-modal');
 const closeAuth = document.getElementById('closeAuth');
@@ -42,22 +42,41 @@ let selectedImageBase64 = null;
 let mediaRecorder = null;
 let audioChunks = [];
 
-// --- تشغيل وإدارة النوافذ المنبثقة (Modals) ---
+// --- تشغيل وإدارة النوافذ المنبثقة بربط سريع ومباشر ---
 
-// فتح وإغلاق نافذة تسجيل الدخول
-if(authNavBtn) authNavBtn.addEventListener('click', handleAuthNavAction);
-if(closeAuth) closeAuth.addEventListener('click', () => authModal.style.display = 'none');
+if(authNavBtn) {
+    authNavBtn.onclick = function() {
+        handleAuthNavAction();
+    };
+}
 
-// فتح وإغلاق نافذة الإعدادات
-if(settingsBtn) settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
-if(closeSettings) closeSettings.addEventListener('click', () => settingsModal.style.display = 'none');
+if(closeAuth) {
+    closeAuth.onclick = function() {
+        authModal.style.display = 'none';
+    };
+}
 
-// إغلاق نافذة الترقية
-if(closeUpgrade) closeUpgrade.addEventListener('click', () => upgradeModal.style.display = 'none');
+if(settingsBtn) {
+    settingsBtn.onclick = function() {
+        settingsModal.style.display = 'flex';
+    };
+}
+
+if(closeSettings) {
+    closeSettings.onclick = function() {
+        settingsModal.style.display = 'none';
+    };
+}
+
+if(closeUpgrade) {
+    closeUpgrade.onclick = function() {
+        upgradeModal.style.display = 'none';
+    };
+}
 
 // التبديل بين وضع تسجيل حساب جديد أو تسجيل الدخول
 if(authToggleText) {
-    authToggleText.addEventListener('click', () => {
+    authToggleText.onclick = function() {
         isSignUpMode = !isSignUpMode;
         if(isSignUpMode) {
             authTitle.innerText = "إنشاء حساب سيبراني جديد";
@@ -68,10 +87,10 @@ if(authToggleText) {
             authSubmitBtn.innerText = "تسجيل الدخول";
             authToggleText.innerHTML = 'ليس لديك حساب سيبراني؟ <span style="color: var(--accent); font-weight: bold;">أنشئ حسابك الآن</span>';
         }
-    });
+    };
 }
 
-// مراقبة حالة المستخدم الحالية عند فتح الموقع
+// مراقبة حالة المستخدم الحالية عند فتح الموقع من سوبابيس
 supabase.auth.onAuthStateChange(async (event, session) => {
     currentUser = session ? session.user : null;
     if (currentUser) {
@@ -88,7 +107,6 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 
 function handleAuthNavAction() {
     if (currentUser) {
-        // إذا كان مسجلاً بالفعل، الضغط يعني تسجيل الخروج
         if(confirm("هل ترغب في تسجيل الخروج من النظام؟")) {
             supabase.auth.signOut();
         }
@@ -97,9 +115,9 @@ function handleAuthNavAction() {
     }
 }
 
-// تنفيذ عمليات التسجيل والدخول في سوبابيس
+// تنفيذ عمليات التسجيل والدخول في سوبابيس عند الضغط
 if(authSubmitBtn) {
-    authSubmitBtn.addEventListener('click', async () => {
+    authSubmitBtn.onclick = async function() {
         const email = authEmail.value.trim();
         const password = authPassword.value;
         if(!email || !password) return alert("الرجاء ملء كافة الحقول المتاحة.");
@@ -117,7 +135,7 @@ if(authSubmitBtn) {
         } catch (err) {
             alert("خطأ في العملية: " + err.message);
         }
-    });
+    };
 }
 
 // جلب بيانات البروفايل ونوع الباقة (Free / Pro)
@@ -140,16 +158,15 @@ async function fetchUserProfile() {
     }
 }
 
-// محاكاة زر الترقية إلى باقة الـ Pro
+// زر الترقية إلى باقة الـ Pro
 if(subscribeBtn) {
-    subscribeBtn.addEventListener('click', async () => {
+    subscribeBtn.onclick = async function() {
         if(!currentUser) {
             alert("يرجى تسجيل الدخول أولاً لتتمكن من الاشتراك التلقائي.");
             upgradeModal.style.display = 'none';
             authModal.style.display = 'flex';
             return;
         }
-        // تحديث حالة الحساب إلى pro مباشرة في قاعدة البيانات
         const { error } = await supabase.from('profiles').upsert({ id: currentUser.id, subscription: 'pro' });
         if(!error) {
             alert("🎉 مبروك! تم تفعيل اشتراكك في باقة صوتك Pro الذهبية بنجاح وانفتحت لك ميزة الرؤية الآن!");
@@ -158,13 +175,13 @@ if(subscribeBtn) {
         } else {
             alert("فشل التحديث: " + error.message);
         }
-    });
+    };
 }
 
 // --- التعامل مع رفع الصور ومعاينتها ---
-if(imgBtn) imgBtn.addEventListener('click', () => fileInput.click());
+if(imgBtn) imgBtn.onclick = () => fileInput.click();
 if(fileInput) {
-    fileInput.addEventListener('change', (e) => {
+    fileInput.onchange = function(e) {
         const file = e.target.files[0];
         if(!file) return;
         const reader = new FileReader();
@@ -176,29 +193,28 @@ if(fileInput) {
                     <button class="remove-preview" id="clearPreviewBtn">&times;</button>
                 </div>
             `;
-            document.getElementById('clearPreviewBtn').addEventListener('click', () => {
+            document.getElementById('clearPreviewBtn').onclick = function() {
                 selectedImageBase64 = null;
                 previewContainer.innerHTML = '';
                 fileInput.value = '';
-            });
+            };
         };
         reader.readAsDataURL(file);
-    });
+    };
 }
 
-// --- التعامل مع إرسال الرسائل إلى السيرفر المحمي على Render ---
-if(sendBtn) sendBtn.addEventListener('click', handleSendMessage);
+// --- التعامل مع إرسال الرسائل ---
+if(sendBtn) sendBtn.onclick = handleSendMessage;
 if(userInput) {
-    userInput.addEventListener('keypress', (e) => {
+    userInput.onkeypress = function(e) {
         if(e.key === 'Enter') handleSendMessage();
-    });
+    };
 }
 
 async function handleSendMessage() {
     const text = userInput.value.trim();
     if(!text && !selectedImageBase64) return;
 
-    // حماية وفحص ميزة الصور (تتطلب باقة برو)
     if(selectedImageBase64) {
         if(!currentUser) {
             upgradeMessage.innerText = "عذراً يا غالي! ميزة 'التحليل البصري الذكي وقراءة الصور' مخصصة فقط للمشتركين. يرجى تسجيل حسابك أولاً للترقية.";
@@ -212,18 +228,14 @@ async function handleSendMessage() {
         }
     }
 
-    // إخفاء شاشة الترحيب عند بدء الشات
     if(welcomeScreen) welcomeScreen.style.display = 'none';
 
-    // عرض رسالة المستخدم في الواجهة
     appendMessage('user', text, selectedImageBase64);
     userInput.value = '';
     const tempImage = selectedImageBase64;
-    // مسح المعاينة
     if(previewContainer) previewContainer.innerHTML = '';
     selectedImageBase64 = null;
 
-    // تجهيز لودينج الذكاء الاصطناعي
     const aiMessageDiv = appendMessage('ai', 'جاري التفكير وصياغة الرد السيبراني المذهل...');
 
     try {
@@ -275,12 +287,11 @@ function appendMessage(sender, text, imageSrc = null) {
     return msgDiv;
 }
 
-// إضافة زر تحويل النص إلى صوت متناسق
 function addTTSButton(container, text, dialect) {
     const btn = document.createElement('button');
     btn.classList.add('tts-inline-btn');
     btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> استمع للرد';
-    btn.addEventListener('click', async () => {
+    btn.onclick = async function() {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التوليد...';
         try {
             const res = await fetch(`${BACKEND_URL}/api/tts`, {
@@ -296,13 +307,13 @@ function addTTSButton(container, text, dialect) {
         } catch {
             btn.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> خطأ في الصوت';
         }
-    });
+    };
     container.appendChild(btn);
 }
 
 // --- التعامل مع مسجل الصوت (المايكروفون) ---
 if(micBtn) {
-    micBtn.addEventListener('click', async () => {
+    micBtn.onclick = async function() {
         if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
             waveAnimation.style.display = 'none';
@@ -350,15 +361,14 @@ if(micBtn) {
                 alert("يرجى إعطاء صلاحية الوصول للمايكروفون لبدء التسجيل.");
             }
         }
-    });
+    };
 }
 
-// مسح المحادثات
 if(clearChatBtn) {
-    clearChatBtn.addEventListener('click', () => {
+    clearChatBtn.onclick = function() {
         chatMessages.innerHTML = '';
         if(welcomeScreen) welcomeScreen.style.display = 'flex';
         settingsModal.style.display = 'none';
-    });
+    };
 }
 
