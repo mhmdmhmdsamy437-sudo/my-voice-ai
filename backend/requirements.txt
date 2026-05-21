@@ -1,7 +1,7 @@
 fastapi
 uvicorn
+supabase
 groq
-python-multipart
-gunicorn
-supabase==2.4.0
 pydantic
+python-multipart
+
