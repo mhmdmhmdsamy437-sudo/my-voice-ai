@@ -37,6 +37,7 @@ const chatMessages = document.getElementById('chatMessages');
 let isSignUpMode = false;
 let currentUser = null;
 let userProfile = null;
+let selectedImageFile = null; // الاحتفاظ بملف الصورة الفعلي لإرساله كـ Form Data
 let selectedImageBase64 = null;
 let mediaRecorder = null;
 let audioChunks = [];
@@ -109,7 +110,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 authModal.style.display = 'flex';
                 return;
             }
-            const { error } = await supabase.from('profiles').upsert({ id: currentUser.id, subscription: 'pro' });
+            const { error } = await supabase.from('profiles').upsert({ id: currentUser.id, subscription_tier: 'pro' });
             if(!error) {
                 alert("🎉 مبروك! تم تفعيل باقة Pro بنجاح!");
                 upgradeModal.style.display = 'none';
@@ -126,6 +127,7 @@ window.addEventListener('DOMContentLoaded', () => {
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
             if(!file) return;
+            selectedImageFile = file;
             const reader = new FileReader();
             reader.onload = (event) => {
                 selectedImageBase64 = event.target.result;
@@ -137,6 +139,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 `;
                 document.getElementById('clearPreviewBtn').onclick = () => {
                     selectedImageBase64 = null;
+                    selectedImageFile = null;
                     previewContainer.innerHTML = '';
                     fileInput.value = '';
                 };
@@ -160,7 +163,7 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // تشغيل المايكروفون بكفاءة عالية
+    // تشغيل المايكروفون وإرساله إلى كود البايثون المحدث
     if(micBtn) {
         micBtn.onclick = async () => {
             if (mediaRecorder && mediaRecorder.state === "recording") {
@@ -176,31 +179,36 @@ window.addEventListener('DOMContentLoaded', () => {
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        const reader = new FileReader();
-                        reader.onloadend = async () => {
-                            const base64Audio = reader.result.split(',')[1];
-                            if(welcomeScreen) welcomeScreen.style.display = 'none';
-                            const aiMsg = appendMessage('ai', 'جاري تحليل صوتك العذب...');
+                        if(welcomeScreen) welcomeScreen.style.display = 'none';
+                        const aiMsg = appendMessage('ai', 'جاري تحليل صوتك العذب وبناء الإجابة...');
+                        
+                        try {
+                            const dialect = dialectSelect ? dialectSelect.value : 'الفصحى';
+                            const userId = currentUser ? currentUser.id : 'guest';
+
+                            const formData = new FormData();
+                            formData.append("file", audioBlob, "audio.wav");
+                            formData.append("dialect", dialect);
+                            formData.append("user_id", userId);
+
+                            // إرسال الصوت للرابط الصحيح في البايثون
+                            const res = await fetch(`${BACKEND_URL}/api/chat/audio`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const data = await res.json();
                             
-                            try {
-                                const res = await fetch(`${BACKEND_URL}/api/transcribe`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ audio: base64Audio })
-                                });
-                                const data = await res.json();
-                                if(data.success) {
-                                    aiMsg.remove();
-                                    userInput.value = data.text;
-                                    handleSendMessage();
-                                } else {
-                                    aiMsg.innerText = "تعذر تحويل الصوت: " + data.error;
-                                }
-                            } catch {
-                                aiMsg.innerText = "فشل الاتصال بسيرفر الصوت.";
+                            aiMsg.remove();
+                            if(data.status === "success") {
+                                appendMessage('user', data.user_speech);
+                                const replyDiv = appendMessage('ai', data.response);
+                                addTTSButton(replyDiv, data.response, dialect);
+                            } else {
+                                appendMessage('ai', "تعذر معالجة الصوت: " + (data.detail || "خطأ مجهول"));
                             }
-                        };
-                        reader.readAsDataURL(audioBlob);
+                        } catch {
+                            aiMsg.innerText = "فشل الاتصال بسيرفر الصوت المباشر.";
+                        }
                     };
                     
                     mediaRecorder.start();
@@ -246,8 +254,9 @@ async function fetchUserProfile() {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
     if(!error && data) {
         userProfile = data;
+        const tier = userProfile.subscription_tier || userProfile.subscription;
         if(authNavBtn) {
-            if(userProfile.subscription === 'pro') {
+            if(tier === 'pro') {
                 authNavBtn.innerHTML = '<i class="fa-solid fa-crown"></i> حساب Pro (خروج)';
                 authNavBtn.classList.add('pro-user');
                 if(userBadge) userBadge.style.display = 'inline-block';
@@ -264,41 +273,61 @@ async function handleSendMessage() {
     const text = userInput.value.trim();
     if(!text && !selectedImageBase64) return;
 
-    if(selectedImageBase64) {
-        if(!currentUser || !userProfile || userProfile.subscription !== 'pro') {
-            upgradeMessage.innerText = "ميزة تحليل الصور تتطلب ترقية حسابك إلى باقة Pro الفاخرة.";
-            upgradeModal.style.display = 'flex';
-            return;
-        }
-    }
+    const dialect = dialectSelect ? dialectSelect.value : 'الفصحى';
+    const userId = currentUser ? currentUser.id : 'guest';
 
     if(welcomeScreen) welcomeScreen.style.display = 'none';
 
     appendMessage('user', text, selectedImageBase64);
     userInput.value = '';
-    const tempImage = selectedImageBase64;
+    
+    const tempImageFile = selectedImageFile;
+    const tempText = text;
+
     if(previewContainer) previewContainer.innerHTML = '';
     selectedImageBase64 = null;
+    selectedImageFile = null;
 
-    const aiMessageDiv = appendMessage('ai', 'جاري التفكير...');
+    const aiMessageDiv = appendMessage('ai', 'جاري التفكير المالي والسيبراني...');
 
     try {
-        const dialect = dialectSelect ? dialectSelect.value : 'الفصحى';
-        const response = await fetch(`${BACKEND_URL}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, image: tempImage, dialect: dialect })
-        });
+        let response;
+        // 1. إذا وجد ملف صورة يتم إرسال الطلب لرابط الرؤية وتحليل الصور (Vision)
+        if(tempImageFile) {
+            const formData = new FormData();
+            formData.append("text", tempText);
+            formData.append("dialect", dialect);
+            formData.append("user_id", userId);
+            formData.append("file", tempImageFile);
+
+            response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
+                method: 'POST',
+                body: formData
+            });
+        } 
+        // 2. إذا كان مجرد نص عادي يتم إرسال الطلب لرابط الشات النصي العادي (Text)
+        else {
+            response = await fetch(`${BACKEND_URL}/api/chat/text`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: tempText, dialect: dialect, user_id: userId })
+            });
+        }
 
         const result = await response.json();
-        if(result.success) {
-            aiMessageDiv.innerHTML = `<div>${result.reply}</div>`;
-            addTTSButton(aiMessageDiv, result.reply, dialect);
+        
+        if(result.status === "success") {
+            aiMessageDiv.innerHTML = `<div>${result.response}</div>`;
+            addTTSButton(aiMessageDiv, result.response, dialect);
+        } else if (result.status === "upgrade_required") {
+            aiMessageDiv.innerText = result.response;
+            upgradeMessage.innerText = result.response;
+            upgradeModal.style.display = 'flex';
         } else {
-            aiMessageDiv.innerText = "خطأ من السيرفر: " + result.error;
+            aiMessageDiv.innerText = "تنبيه: " + (result.detail || "تعذر إرجاع رد صالح.");
         }
     } catch (err) {
-        aiMessageDiv.innerText = "عذراً، تعذر الاتصال بالسيرفر السحابي.";
+        aiMessageDiv.innerText = "عذراً، تعذر الاتصال بالسيرفر السحابي الحالي.";
     }
 }
 
