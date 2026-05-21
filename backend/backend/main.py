@@ -4,9 +4,11 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq
+from supabase import create_client, Client
 
 app = FastAPI(title="Sawtak AI Pro Backend")
 
+# تفعيل الـ CORS لتوصيل الفرونتيند بالباكيند
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,12 +17,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# إعدادات روابط ومفاتيح Supabase الخاصة بمشروعك بشكل آمن
+SUPABASE_URL = "https://uciymzougmatinbqxdpq.supabase.co"
+# قراءة المفتاح من البيئة لحمايته من الحظر
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "") 
+
+# التحقق من وجود المفتاح السري لتجنب توقف السيرفر عند التشغيل التجريبي
+if SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
+
+# مفتاح Groq
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY)
+
+# دالة برمجية (Middleware) للفحص هل حساب المستخدم Pro أم لا
+def check_pro_badge(user_id: str):
+    if not supabase:
+        # في بيئة التطوير المحلية إذا لم يتوفر المفتاح، نمرر الطلب مؤقتاً للتجربة
+        return True
+        
+    if not user_id or user_id in ["null", "undefined", "guest"]:
+         raise HTTPException(status_code=401, detail="يرجى تسجيل الدخول أولاً لاستخدام هذه الميزة.")
+    try:
+        response = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
+        if response.data and response.data.get("subscription_tier") == "pro":
+            return True
+        return False
+    except Exception:
+        raise HTTPException(status_code=401, detail="فشل التحقق من حساب المستخدم.")
 
 class TextPrompt(BaseModel):
     text: str
     dialect: str
+    user_id: str = "guest"
 
 def get_strict_system_prompt(dialect: str) -> str:
     return f"""
@@ -33,6 +64,7 @@ def get_strict_system_prompt(dialect: str) -> str:
     4. Keep answers highly interactive, professional, and clear.
     """
 
+# 🔓 ميزة مجانية: الشات النصي (متاحة للجميع)
 @app.post("/api/chat/text")
 async def chat_text(prompt: TextPrompt):
     try:
@@ -49,8 +81,57 @@ async def chat_text(prompt: TextPrompt):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 🔓 ميزة مجانية: الشات الصوتي (متاحة للجميع)
+@app.post("/api/chat/audio")
+async def chat_audio(dialect: str = Form(...), user_id: str = Form("guest"), file: UploadFile = File(...)):
+    try:
+        audio_bytes = await file.read()
+        temp_filename = "temp_audio.wav"
+        with open(temp_filename, "wb") as f:
+            f.write(audio_bytes)
+           
+        with open(temp_filename, "rb") as audio_file:
+            transcription = client.audio.transcriptions.create(
+                file=audio_file,
+                model="whisper-large-v3",
+                response_format="text",
+                language="ar",
+                prompt="السلام عليكم، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ كيف الطقس اليوم?"
+            )
+        captured_text = str(transcription).strip()
+        os.remove(temp_filename)
+       
+        if not captured_text or captured_text.isspace():
+            return {"status": "success", "user_speech": "...", "response": "لم أتمكن من سماع أي صوت بوضوح، أرجو المحاولة مرة أخرى بقرب المايك."}
+       
+        system_msg = get_strict_system_prompt(dialect)
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": captured_text}
+            ],
+            temperature=0.4
+        )
+        return {
+            "status": "success",
+            "user_speech": captured_text,
+            "response": completion.choices[0].message.content.strip()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 🔒 ميزة مدفوعة: رؤية وتحليل الصور (تطلب باقة Pro)
 @app.post("/api/chat/vision")
-async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: UploadFile = File(...)):
+async def chat_vision(text: str = Form(""), dialect: str = Form(""), user_id: str = Form(...), file: UploadFile = File(...)):
+    # خطوة التحقق من باقة المستخدم
+    is_pro = check_pro_badge(user_id)
+    if not is_pro:
+        return {
+            "status": "upgrade_required",
+            "response": "⚠️ ميزة تحليل ورؤية الصور مخصصة حصرياً للمشتركين في باقة 'صوتك AI Pro'. يرجى ترقية حسابك لفتح هذه الميزة وميزات توليد الصور القادمة!"
+        }
+        
     try:
         image_bytes = await file.read()
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
@@ -71,46 +152,6 @@ async def chat_vision(text: str = Form(""), dialect: str = Form(""), file: Uploa
             temperature=0.3
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/chat/audio")
-async def chat_audio(dialect: str = Form(...), file: UploadFile = File(...)):
-    try:
-        audio_bytes = await file.read()
-        temp_filename = "temp_audio.wav"
-        with open(temp_filename, "wb") as f:
-            f.write(audio_bytes)
-           
-        with open(temp_filename, "rb") as audio_file:
-            # هنا التعديل الجذري: إجبار الموديل على إخراج الحروف العربية الفصحى والعاميات مباشرة ومنع اللاتيني
-            transcription = client.audio.transcriptions.create(
-                file=audio_file,
-                model="whisper-large-v3",
-                response_format="text",
-                language="ar",
-                prompt="السلام عليكم، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ كيف الطقس اليوم؟"
-            )
-        captured_text = str(transcription).strip()
-        os.remove(temp_filename)
-        
-        if not captured_text or captured_text.isspace():
-            return {"status": "success", "user_speech": "...", "response": "لم أتمكن من سماع أي صوت بوضوح، أرجو المحاولة مرة أخرى بقرب المايك."}
-       
-        system_msg = get_strict_system_prompt(dialect)
-        completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": captured_text}
-            ],
-            temperature=0.4
-        )
-        return {
-            "status": "success",
-            "user_speech": captured_text,
-            "response": completion.choices[0].message.content.strip()
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
