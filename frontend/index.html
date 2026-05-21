@@ -15,7 +15,7 @@
                 <i class="fa-solid fa-microphone-lines logo-icon"></i>
                 <h2>صوتك <span>AI</span> <span id="user-badge" class="pro-badge" style="display:none;">Pro</span></h2>
             </div>
-           
+            
             <div style="display: flex; gap: 10px; align-items: center;">
                 <button id="auth-nav-btn" class="auth-header-btn"><i class="fa-solid fa-user-gear"></i> تسجيل الدخول</button>
                 <button id="settingsBtn" class="icon-btn-glow" title="الإعدادات"><i class="fa-solid fa-sliders"></i></button>
@@ -23,12 +23,12 @@
         </header>
 
         <div class="chat-container">
-           
+            
             <div id="welcomeScreen" class="welcome-screen">
                 <i class="fa-solid fa-wand-magic-sparkles welcome-icon"></i>
                 <h1>مرحباً بك في مستقبل الذكاء الاصطناعي</h1>
                 <p style="color: var(--text-muted); margin-top: 10px;">جرب أحد المقترحات التالية لبدء المحادثة السريعة الفورية:</p>
-               
+                
                 <div class="suggested-cards">
                     <div class="suggest-card" onclick="setPresetPrompt('اعطني نصائح برمجية لتحسين كود بايثون')">
                         <i class="fa-solid fa-microphone-lines"></i>
@@ -58,7 +58,7 @@
                 <div class="input-wrapper">
                     <input type="text" id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة...">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
-                   
+                    
                     <button id="imgBtn" class="embed-btn" type="button" title="إرفاق صورة"><i class="fa-solid fa-camera"></i></button>
                     <button id="micBtn" class="embed-btn" type="button" title="تسجيل صوتي"><i class="fa-solid fa-microphone"></i></button>
                     <button id="sendBtn" class="send-action-btn" type="button" title="إرسال"><i class="fa-solid fa-paper-plane"></i></button>
@@ -117,6 +117,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script type="module" src="app.js"></script>
     <script>
         function setPresetPrompt(text) {
