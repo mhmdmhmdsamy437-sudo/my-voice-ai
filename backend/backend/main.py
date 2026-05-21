@@ -19,10 +19,8 @@ app.add_middleware(
 
 # إعدادات روابط ومفاتيح Supabase الخاصة بمشروعك بشكل آمن
 SUPABASE_URL = "https://uciymzougmatinbqxdpq.supabase.co"
-# قراءة المفتاح من البيئة لحمايته من الحظر
-SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "") 
+SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
 
-# التحقق من وجود المفتاح السري لتجنب توقف السيرفر عند التشغيل التجريبي
 if SUPABASE_KEY:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 else:
@@ -32,31 +30,27 @@ else:
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY)
 
-# دالة برمجية (Middleware) للفحص هل حساب المستخدم Pro أم لا
+# دالة برمجية للفحص هل حساب المستخدم Pro أم لا (تعتمد على العمود الصحيح في قاعدة بياناتك)
 def check_pro_badge(user_id: str):
     if not supabase:
-        # في بيئة التطوير المحلية إذا لم يتوفر المفتاح، نمرر الطلب مؤقتاً للتجربة
         return True
-        
     if not user_id or user_id in ["null", "undefined", "guest"]:
-         raise HTTPException(status_code=401, detail="يرجى تسجيل الدخول أولاً لاستخدام هذه الميزة.")
+        return False
     try:
-        response = supabase.table("profiles").select("subscription_tier").eq("id", user_id).single().execute()
-        if response.data and response.data.get("subscription_tier") == "pro":
-            return True
+        # فحص الحقلين لضمان التوافق التام مع الجداول
+        response = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+        if response.data:
+            tier = response.data.get("subscription_tier") or response.data.get("subscription")
+            if tier == "pro":
+                return True
         return False
     except Exception:
-        raise HTTPException(status_code=401, detail="فشل التحقق من حساب المستخدم.")
+        return False
 
-class TextPrompt(BaseModel):
-    text: str
-    dialect: str
-    user_id: str = "guest"
-
+# ميكانيكية الـ System Prompt المتطور الخاص بك
 def get_strict_system_prompt(dialect: str) -> str:
     return f"""
     You are 'Sawtak AI' (صوتك), a premium conversational assistant optimized ONLY for 3 languages: Arabic, English, and French.
-   
     CRITICAL INSTRUCTIONS:
     1. STRICT LANGUAGE RESTRICTION: You are allowed to respond ONLY in one of these three languages: Arabic (العربية), English, or French (Français). NEVER respond in any other language under any circumstances.
     2. MATCH USER LANGUAGE: Detect which of the 3 allowed languages the user is speaking or writing, and respond 100% in that exact language. No language mixing.
@@ -64,28 +58,73 @@ def get_strict_system_prompt(dialect: str) -> str:
     4. Keep answers highly interactive, professional, and clear.
     """
 
-# 🔓 ميزة مجانية: الشات النصي (متاحة للجميع)
-@app.post("/api/chat/text")
-async def chat_text(prompt: TextPrompt):
+# الموديل المحدث لاستقبال البيانات النصية أو المدمجة بصورة Base64
+class ChatRequest(BaseModel):
+    message: str = ""
+    image: str = None  # لدعم إرسال الصور كـ Base64 من الـ Frontend
+    dialect: str = "الفصحى"
+    user_id: str = "guest"
+
+# 🌐 الرابط الرئيسي الموحد للمحادثات (النصية وتحليل الصور البصرية)
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatRequest):
     try:
-        system_msg = get_strict_system_prompt(prompt.dialect)
-        completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": prompt.text}
-            ],
-            temperature=0.4
-        )
-        return {"status": "success", "response": completion.choices[0].message.content.strip()}
+        # 1. إذا كان الطلب يحتوي على صورة، نتحقق أولاً من صلاحيات الـ Pro
+        if request.image:
+            if not check_pro_badge(request.user_id):
+                return {
+                    "success": False, 
+                    "error": "upgrade_required", 
+                    "reply": "⚠️ ميزة تحليل ورؤية الصور مخصصة حصرياً للمشتركين في باقة 'صوتك AI Pro'. يرجى ترقية حسابك لفتح هذه الميزة الفاخرة!"
+                }
+            
+            # معالجة الصورة وفصل الـ Header إذا كان موجوداً
+            img_data = request.image
+            if "," in img_data:
+                img_data = img_data.split(",")[1]
+
+            system_msg = get_strict_system_prompt(request.dialect)
+            completion = client.chat.completions.create(
+                model="llama-3.2-11b-vision-instant",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": request.message if request.message else "حلل هذه الصورة واشرح محتواها بالتفصيل."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}}
+                        ]
+                    }
+                ],
+                temperature=0.3
+            )
+            return {"success": True, "reply": completion.choices[0].message.content.strip()}
+        
+        # 2. إذا كان طلباً نصياً عادياً
+        else:
+            system_msg = get_strict_system_prompt(request.dialect)
+            completion = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": request.message}
+                ],
+                temperature=0.4
+            )
+            return {"success": True, "reply": completion.choices[0].message.content.strip()}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 🔓 ميزة مجانية: الشات الصوتي (متاحة للجميع)
-@app.post("/api/chat/audio")
-async def chat_audio(dialect: str = Form(...), user_id: str = Form("guest"), file: UploadFile = File(...)):
+# 🎙️ رابط معالجة الصوت الموحد المتوافق تماماً مع الـ Frontend
+class AudioRequest(BaseModel):
+    audio: str  # يستقبل الصوت المبعوث كـ Base64
+
+@app.post("/api/transcribe")
+async def transcribe_audio(request: AudioRequest):
     try:
-        audio_bytes = await file.read()
+        # فك تشفير الملف الصوتي القادم من المتصفح وحفظه مؤقتاً
+        audio_bytes = base64.b64decode(request.audio)
         temp_filename = "temp_audio.wav"
         with open(temp_filename, "wb") as f:
             f.write(audio_bytes)
@@ -96,62 +135,22 @@ async def chat_audio(dialect: str = Form(...), user_id: str = Form("guest"), fil
                 model="whisper-large-v3",
                 response_format="text",
                 language="ar",
-                prompt="السلام عليكم، كيف حالك؟ أهلاً بك. من هو ليونيل ميسي؟ كيف الطقس اليوم?"
+                prompt="السلام عليكم، كيف حالك؟ أهلاً بك."
             )
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
        
         if not captured_text or captured_text.isspace():
-            return {"status": "success", "user_speech": "...", "response": "لم أتمكن من سماع أي صوت بوضوح، أرجو المحاولة مرة أخرى بقرب المايك."}
-       
-        system_msg = get_strict_system_prompt(dialect)
-        completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": captured_text}
-            ],
-            temperature=0.4
-        )
-        return {
-            "status": "success",
-            "user_speech": captured_text,
-            "response": completion.choices[0].message.content.strip()
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            return {"success": True, "text": "لم أسمعك بوضوح."}
+            
+        return {"success": True, "text": captured_text}
 
-# 🔒 ميزة مدفوعة: رؤية وتحليل الصور (تطلب باقة Pro)
-@app.post("/api/chat/vision")
-async def chat_vision(text: str = Form(""), dialect: str = Form(""), user_id: str = Form(...), file: UploadFile = File(...)):
-    # خطوة التحقق من باقة المستخدم
-    is_pro = check_pro_badge(user_id)
-    if not is_pro:
-        return {
-            "status": "upgrade_required",
-            "response": "⚠️ ميزة تحليل ورؤية الصور مخصصة حصرياً للمشتركين في باقة 'صوتك AI Pro'. يرجى ترقية حسابك لفتح هذه الميزة وميزات توليد الصور القادمة!"
-        }
-        
-    try:
-        image_bytes = await file.read()
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-       
-        system_msg = get_strict_system_prompt(dialect)
-        completion = client.chat.completions.create(
-            model="llama-3.2-11b-vision-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": text if text else "Analyze and describe this image clearly using one of the allowed languages (Arabic, English, French)."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
-            ],
-            temperature=0.3
-        )
-        return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if os.path.exists("temp_audio.wav"):
+            os.remove("temp_audio.wav")
+        return {"success": False, "error": str(e)}
+
+@app.get("/")
+def read_root():
+    return {"status": "Live", "message": "سيرفر صوتك AI الاحترافي يعمل بأعلى كفاءة!"}
 
