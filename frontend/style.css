@@ -8,7 +8,6 @@
     --border: #1e293b;
     --msg-user: #1e40af;
     --msg-ai: #1e293b;
-    /* لون باقة البرو الذهبية الفخمة */
     --pro-gold: #ffb300;
     --pro-glow: rgba(255, 179, 0, 0.4);
 }
@@ -27,7 +26,6 @@ body {
     height: 100vh;
 }
 
-/* الهيكل الرئيسي */
 .app-container {
     display: flex;
     flex-direction: column;
@@ -37,7 +35,6 @@ body {
     position: relative;
 }
 
-/* شريط علوي مودرن */
 .app-header {
     display: flex;
     justify-content: space-between;
@@ -65,7 +62,6 @@ body {
     color: var(--accent);
 }
 
-/* شارة الـ Pro بجانب الشعار */
 .pro-badge {
     background: linear-gradient(135deg, var(--pro-gold), #ff6f00);
     color: #000;
@@ -77,7 +73,6 @@ body {
     box-shadow: 0 0 10px var(--pro-glow);
 }
 
-/* زر الحسابات في الهيدر */
 .auth-header-btn {
     background: rgba(0, 242, 254, 0.1);
     border: 1px solid var(--accent);
@@ -99,7 +94,6 @@ body {
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
-/* زر الـ Pro الذهبي عند الترقية */
 .auth-header-btn.pro-user {
     border-color: var(--pro-gold);
     color: var(--pro-gold);
@@ -132,7 +126,6 @@ body {
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
-/* شاشة الترحيب والبطاقات */
 .welcome-screen {
     display: flex;
     flex-direction: column;
@@ -190,7 +183,6 @@ body {
     color: var(--text-muted);
 }
 
-/* صندوق المحادثة */
 .chat-container {
     flex: 1;
     display: flex;
@@ -208,7 +200,6 @@ body {
     gap: 15px;
 }
 
-/* مساحة معاينة الصورة المرفوعة */
 .preview-container {
     display: flex;
     padding: 10px 20px;
@@ -228,7 +219,6 @@ body {
     font-size: 10px; cursor: pointer;
 }
 
-/* شريط الإدخال المطور */
 .input-area-container {
     padding: 15px;
     background: linear-gradient(to top, var(--bg-main) 80%, transparent);
@@ -298,7 +288,6 @@ body {
     transform: scale(1.05);
 }
 
-/* فقاعات الرسائل والمستمع */
 .message {
     max-width: 75%;
     padding: 12px 16px;
@@ -317,7 +306,42 @@ body {
     border-top-right-radius: 2px;
 }
 
-/* المودال المنبثق للإعدادات والـ Auth والترقية */
+/* التنسيق الجديد لدعم الـ Markdown والقوائم المتناسقة جهة اليمين للغة العربية */
+.markdown-body {
+    direction: rtl;
+    text-align: right;
+    display: block;
+}
+
+.markdown-body p {
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+.markdown-body strong {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.markdown-body ul, .markdown-body ol {
+    padding-right: 22px;
+    padding-left: 0;
+    margin-top: 5px;
+    margin-bottom: 10px;
+    list-style-position: outside;
+}
+
+.markdown-body li {
+    margin-bottom: 5px;
+    line-height: 1.5;
+}
+
+.markdown-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    font-weight: bold;
+}
+
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -362,7 +386,6 @@ body {
     gap: 20px;
 }
 
-/* حقول تسجيل الدخول */
 .auth-input {
     width: 100%;
     background: var(--bg-main);
@@ -394,7 +417,6 @@ body {
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
-/* زر اشتراك البرو الذهبي */
 .subscribe-btn-gold {
     width: 100%;
     background: linear-gradient(135deg, var(--pro-gold), #ff6f00);
@@ -438,7 +460,6 @@ body {
     font-weight: bold;
 }
 
-/* أنيميشن شكل الموجات الصوتية للتسجيل */
 .wave-animation {
     display: none;
     justify-content: center;
@@ -469,7 +490,6 @@ body {
     50% { transform: translateY(-10px); }
 }
 
-/* تحسينات الموبايل المتكاملة للقرن 22 */
 @media (max-width: 768px) {
     .suggested-cards { grid-template-columns: 1fr; }
     .message { max-width: 85%; }
