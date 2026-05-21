@@ -44,7 +44,7 @@ let audioChunks = [];
 
 // الانتظار حتى تحميل الصفحة بالكامل لضمان قراءة الأزرار
 window.addEventListener('DOMContentLoaded', () => {
-    
+   
     if(authNavBtn) {
         authNavBtn.onclick = () => handleAuthNavAction();
     }
@@ -163,7 +163,6 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // تشغيل المايكروفون وإرساله إلى كود البايثون المحدث
     if(micBtn) {
         micBtn.onclick = async () => {
             if (mediaRecorder && mediaRecorder.state === "recording") {
@@ -175,13 +174,13 @@ window.addEventListener('DOMContentLoaded', () => {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
-                    
+                   
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                         if(welcomeScreen) welcomeScreen.style.display = 'none';
                         const aiMsg = appendMessage('ai', 'جاري تحليل صوتك العذب وبناء الإجابة...');
-                        
+                       
                         try {
                             const dialect = dialectSelect ? dialectSelect.value : 'الفصحى';
                             const userId = currentUser ? currentUser.id : 'guest';
@@ -191,13 +190,12 @@ window.addEventListener('DOMContentLoaded', () => {
                             formData.append("dialect", dialect);
                             formData.append("user_id", userId);
 
-                            // إرسال الصوت للرابط الصحيح في البايثون
                             const res = await fetch(`${BACKEND_URL}/api/chat/audio`, {
                                 method: 'POST',
                                 body: formData
                             });
                             const data = await res.json();
-                            
+                           
                             aiMsg.remove();
                             if(data.status === "success") {
                                 appendMessage('user', data.user_speech);
@@ -210,7 +208,7 @@ window.addEventListener('DOMContentLoaded', () => {
                             aiMsg.innerText = "فشل الاتصال بسيرفر الصوت المباشر.";
                         }
                     };
-                    
+                   
                     mediaRecorder.start();
                     waveAnimation.style.display = 'flex';
                     micBtn.style.color = '#ef4444';
@@ -222,7 +220,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// مراقبة حالة المستخدم الحالية من سوبابيس
 if (supabase && supabase.auth) {
     supabase.auth.onAuthStateChange(async (event, session) => {
         currentUser = session ? session.user : null;
@@ -270,19 +267,18 @@ async function fetchUserProfile() {
 }
 
 async function handleSendMessage() {
-    const text = userInput.value.trim();
-    if(!text && !selectedImageBase64) return;
+    const tempText = userInput.value.trim();
+    if(!tempText && !selectedImageBase64) return;
 
     const dialect = dialectSelect ? dialectSelect.value : 'الفصحى';
     const userId = currentUser ? currentUser.id : 'guest';
 
     if(welcomeScreen) welcomeScreen.style.display = 'none';
 
-    appendMessage('user', text, selectedImageBase64);
+    appendMessage('user', tempText, selectedImageBase64);
     userInput.value = '';
-    
+   
     const tempImageFile = selectedImageFile;
-    const tempText = text;
 
     if(previewContainer) previewContainer.innerHTML = '';
     selectedImageBase64 = null;
@@ -292,7 +288,6 @@ async function handleSendMessage() {
 
     try {
         let response;
-        // 1. إذا وجد ملف صورة يتم إرسال الطلب لرابط الرؤية وتحليل الصور (Vision)
         if(tempImageFile) {
             const formData = new FormData();
             formData.append("text", tempText);
@@ -304,8 +299,7 @@ async function handleSendMessage() {
                 method: 'POST',
                 body: formData
             });
-        } 
-        // 2. إذا كان مجرد نص عادي يتم إرسال الطلب لرابط الشات النصي العادي (Text)
+        }
         else {
             response = await fetch(`${BACKEND_URL}/api/chat/text`, {
                 method: 'POST',
@@ -315,26 +309,36 @@ async function handleSendMessage() {
         }
 
         const result = await response.json();
-        
+       
         if(result.status === "success") {
-            aiMessageDiv.innerHTML = `<div>${result.response}</div>`;
+            // إرسال النص الصافي للمكتبة لمعالجته بشكل سليم داخل العنصر الفرعي
+            const containerSpan = aiMessageDiv.querySelector('.markdown-body');
+            if(containerSpan && typeof marked !== 'undefined') {
+                marked.setOptions({ breaks: true, gfm: true });
+                containerSpan.innerHTML = marked.parse(result.response);
+            } else if (containerSpan) {
+                containerSpan.innerText = result.response;
+            }
             addTTSButton(aiMessageDiv, result.response, dialect);
         } else if (result.status === "upgrade_required") {
-            aiMessageDiv.innerText = result.response;
+            const containerSpan = aiMessageDiv.querySelector('.markdown-body');
+            if(containerSpan) containerSpan.innerText = result.response;
             upgradeMessage.innerText = result.response;
             upgradeModal.style.display = 'flex';
         } else {
-            aiMessageDiv.innerText = "تنبيه: " + (result.detail || "تعذر إرجاع رد صالح.");
+            const containerSpan = aiMessageDiv.querySelector('.markdown-body');
+            if(containerSpan) containerSpan.innerText = "تنبيه: " + (result.detail || "تعذر إرجاع رد صالح.");
         }
     } catch (err) {
-        aiMessageDiv.innerText = "عذراً، تعذر الاتصال بالسيرفر السحابي الحالي.";
+        const containerSpan = aiMessageDiv.querySelector('.markdown-body');
+        if(containerSpan) containerSpan.innerText = "عذراً، تعذر الاتصال بالسيرفر السحابي الحالي.";
     }
 }
 
 function appendMessage(sender, text, imageSrc = null) {
     const msgDiv = document.createElement('div');
     msgDiv.classList.add('message', sender);
-    
+   
     if(imageSrc) {
         const img = document.createElement('img');
         img.src = imageSrc;
@@ -344,10 +348,18 @@ function appendMessage(sender, text, imageSrc = null) {
         img.style.display = 'block';
         msgDiv.appendChild(img);
     }
-    
+   
     if(text) {
         const textSpan = document.createElement('span');
-        textSpan.innerText = text;
+        textSpan.classList.add('markdown-body');
+        
+        // التحويل المباشر للرسائل الفورية والذكاء الاصطناعي
+        if (sender === 'ai' && typeof marked !== 'undefined' && text !== 'جاري التفكير المالي والسيبراني...') {
+            marked.setOptions({ breaks: true, gfm: true });
+            textSpan.innerHTML = marked.parse(text);
+        } else {
+            textSpan.innerText = text;
+        }
         msgDiv.appendChild(textSpan);
     }
 
