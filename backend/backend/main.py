@@ -8,6 +8,7 @@ from supabase import create_client, Client
 
 app = FastAPI(title="Sawtak AI Pro Backend")
 
+# السماح بجميع الاتصالات (CORS) لتجنب الحظر
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,77 +43,95 @@ def check_pro_badge(user_id: str):
     except Exception:
         return False
 
-class ChatRequest(BaseModel):
-    message: str = ""
-    image: str = None  
-    dialect: str = "الفصحى"
-    user_id: str = "guest"
-
 def get_strict_system_prompt(dialect: str) -> str:
     return f"""
     You are 'Sawtak AI' (صوتك), a premium conversational assistant optimized ONLY for 3 languages: Arabic, English, and French.
     CRITICAL INSTRUCTIONS:
-    1. STRICT LANGUAGE RESTRICTION: You are allowed to respond ONLY in one of these three languages: Arabic (العربية), English, or French (Français). NEVER respond in any other language under any circumstances.
-    2. MATCH USER LANGUAGE: Detect which of the 3 allowed languages the user is speaking or writing, and respond 100% in that exact language. No language mixing.
-    3. DIALECT ADAPTATION: If the user communicates in Arabic, adapt your tone naturally to match their context or their preferred style/dialect: ({dialect}). Understand local phrasing, slang, and common expressions perfectly.
-    4. Keep answers highly interactive, professional, and clear.
+    1. STRICT LANGUAGE RESTRICTION: Respond ONLY in Arabic (العربية), English, or French (Français). NEVER use any other language.
+    2. MATCH USER LANGUAGE: Answer 100% in the exact language the user used in the immediate last message. Do not mix languages.
+    3. DIALECT ADAPTATION: If the user communicates in Arabic, adapt your tone naturally to match their preferred style/dialect: ({dialect}). Understand local phrasing and slang perfectly.
+    4. Provide focused, clear, and interactive answers. Never reply to multiple historical questions if they are bundled incorrectly.
     """
 
-# 🌐 الرابط الموحد المحدث المتوافق 100% مع الـ Frontend لمنع الـ undefined
-@app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest):
-    try:
-        if request.image:
-            if not check_pro_badge(request.user_id):
-                return {"success": False, "reply": "⚠️ ميزة تحليل الصور مخصصة لباقة Pro."}
-            
-            img_data = request.image
-            if "," in img_data:
-                img_data = img_data.split(",")[1]
+# 1. نموذج استقبال الشات النصي العادي المتوافق مع الفرونتيند
+class TextChatRequest(BaseModel):
+    text: str
+    dialect: str = "الفصحى"
+    user_id: str = "guest"
 
-            system_msg = get_strict_system_prompt(request.dialect)
-            completion = client.chat.completions.create(
-                model="llama-3.2-11b-vision-instant",
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": request.message if request.message else "Analyze this image."},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}}
-                        ]
-                    }
-                ],
-                temperature=0.3
-            )
-            return {"success": True, "reply": completion.choices[0].message.content.strip()}
+@app.post("/api/chat/text")
+async def chat_text_endpoint(request: TextChatRequest):
+    try:
+        # تنظيف النص لضمان إزالة أي فراغات أو تداخل
+        clean_message = request.text.strip()
+        if not clean_message:
+            return {"status": "success", "response": "لم أستلم أي نص واضح."}
+
+        system_msg = get_strict_system_prompt(request.dialect)
         
-        else:
-            system_msg = get_strict_system_prompt(request.dialect)
-            completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": request.message}
-                ],
-                temperature=0.4
-            )
-            return {"success": True, "reply": completion.choices[0].message.content.strip()}
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": clean_message} # معالجة الرسالة الحالية فقط بدقة
+            ],
+            temperature=0.4
+        )
+        return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 🎙️ رابط معالجة الصوت المحدث ليفهمه الفرونتيند
-class AudioRequest(BaseModel):
-    audio: str
-
-@app.post("/api/transcribe")
-async def transcribe_audio(request: AudioRequest):
+# 2. رابط معالجة وتحليل الصور (Vision) المتوافق مع الفرونتيند
+@app.post("/api/chat/vision")
+async def chat_vision_endpoint(
+    text: str = Form(""),
+    dialect: str = Form("الفصحى"),
+    user_id: str = Form("guest"),
+    file: UploadFile = File(...)
+):
     try:
-        audio_bytes = base64.b64decode(request.audio)
-        temp_filename = "temp_audio.wav"
+        if not check_pro_badge(user_id):
+            return {"status": "upgrade_required", "response": "⚠️ ميزة تحليل الصور مخصصة وحصرية لباقة Pro الفاخرة."}
+        
+        image_bytes = await file.read()
+        base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        
+        system_msg = get_strict_system_prompt(dialect)
+        user_prompt = text.strip() if text.strip() else "Analyze this image."
+
+        completion = client.chat.completions.create(
+            model="llama-3.2-11b-vision-instant",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            temperature=0.3
+        )
+        return {"status": "success", "response": completion.choices[0].message.content.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 3. رابط الشات الصوتي (Audio) المتوافق مع الفرونتيند المحدث
+@app.post("/api/chat/audio")
+async def chat_audio_endpoint(
+    dialect: str = Form("الفصحى"),
+    user_id: str = Form("guest"),
+    file: UploadFile = File(...)
+):
+    temp_filename = "temp_voice_input.wav"
+    try:
+        # حفظ الملف الصوتي المرسل مؤقتاً لتقديمه للـ Whisper API
+        audio_content = await file.read()
         with open(temp_filename, "wb") as f:
-            f.write(audio_bytes)
-           
+            f.write(audio_content)
+        
+        # تحويل الصوت إلى نص (Transcription)
         with open(temp_filename, "rb") as audio_file:
             transcription = client.audio.transcriptions.create(
                 file=audio_file,
@@ -120,14 +139,35 @@ async def transcribe_audio(request: AudioRequest):
                 response_format="text",
                 language="ar"
             )
+        
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
-        return {"success": True, "text": captured_text}
+
+        if not captured_text:
+            return {"status": "success", "user_speech": "", "response": "عذراً، لم أتمكن من سماع صوتك بشكل واضح."}
+
+        # توليد رد ذكي بناءً على النص المستخرج من صوت المستخدم
+        system_msg = get_strict_system_prompt(dialect)
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": captured_text}
+            ],
+            temperature=0.4
+        )
+        
+        return {
+            "status": "success",
+            "user_speech": captured_text,
+            "response": completion.choices[0].message.content.strip()
+        }
     except Exception as e:
-        if os.path.exists("temp_audio.wav"): os.remove("temp_audio.wav")
-        return {"success": False, "error": str(e)}
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def read_root():
-    return {"status": "Live"}
+    return {"status": "Live", "message": "Sawtak AI Pro Backend is Fully Synchronized."}
 
