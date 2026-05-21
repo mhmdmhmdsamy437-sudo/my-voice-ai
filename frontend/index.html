@@ -3,109 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sawtak AI - صوتك Pro</title>
+    <title>صوتك AI - المساعد الصوتي والتحليل البصري</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div id="nav-auth-container">
-        <button id="auth-nav-btn"><i class="fa-solid fa-user-lock"></i> تسجيل الدخول</button>
-    </div>
-
-    <div class="chat-container">
-        <div id="welcomeScreen" class="welcome-screen">
+    <div class="app-container">
+        <header class="app-header">
             <div class="logo-area">
-                <i class="fa-solid fa-microphone-lines main-logo-icon"></i>
-                <h1>صوتك AI <span class="pro-badge">Pro</span></h1>
+                <i class="fa-solid fa-microphone-lines logo-icon"></i>
+                <h2>صوتك <span>AI</span> <span id="user-badge" class="pro-badge" style="display:none;">Pro</span></h2>
             </div>
-            <p class="subtitle">مرحباً بك في مستقبل الذكاء الاصطناعي. جرب أحد المقترحات التالية لبدء المحادثة السريعة:</p>
             
-            <div class="preset-cards">
-                <div class="card" onclick="setPresetPrompt('اعطني نصائح برمجية لتحسين كود بايثون')">
-                    <i class="fa-solid fa-sliders"></i>
-                    <h3>هندسة صوتية</h3>
-                    <p>تحليل الصوت والذبذبات</p>
-                </div>
-                <div class="card" onclick="setPresetPrompt('حلل هذه الصورة واشرح محتواها بالتفصيل')">
-                    <i class="fa-solid fa-eye"></i>
-                    <h3>تحليل بصري ذكي</h3>
-                    <p>رؤية الصور وفهمها</p>
-                </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="auth-nav-btn" class="auth-header-btn"><i class="fa-solid fa-user-gear"></i> تسجيل الدخول</button>
+                <button id="settingsBtn" class="icon-btn-glow" title="الإعدادات"><i class="fa-solid fa-sliders"></i></button>
             </div>
-        </div>
+        </header>
 
-        <div id="chatMessages" class="chat-messages"></div>
-
-        <div id="waveAnimation" class="wave-container" style="display: none;">
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <p>جاري تسجيل صوتك الفصيح...</p>
-        </div>
-
-        <div id="previewContainer" class="preview-container"></div>
-
-        <div class="input-area">
-            <button id="settingsBtn" class="action-btn" title="الإعدادات"><i class="fa-solid fa-gear"></i></button>
+        <div class="chat-container">
             
-            <div class="input-wrapper">
-                <input type="text" id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة...">
-                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <div id="welcomeScreen" class="welcome-screen">
+                <i class="fa-solid fa-wand-magic-sparkles welcome-icon"></i>
+                <h1>مرحباً بك في مستقبل الذكاء الاصطناعي</h1>
+                <p style="color: var(--text-muted); margin-top: 10px;">جرب أحد المقترحات التالية لبدء المحادثة السريعة الفورية:</p>
                 
-                <button id="imgBtn" class="embed-btn" title="إرفاق صورة"><i class="fa-solid fa-camera"></i></button>
-                <button id="micBtn" class="embed-btn" title="تسجيل صوتي"><i class="fa-solid fa-microphone"></i></button>
+                <div class="suggested-cards">
+                    <div class="suggest-card" onclick="setPresetPrompt('اعطني نصائح برمجية لتحسين كود بايثون')">
+                        <i class="fa-solid fa-microphone-lines"></i>
+                        <h4>هندسة صوتية</h4>
+                        <p>تحليل الصوت والذبذبات والترددات</p>
+                    </div>
+                    <div class="suggest-card" onclick="setPresetPrompt('حلل هذه الصورة واشرح محتواها بالتفصيل')">
+                        <i class="fa-solid fa-eye"></i>
+                        <h4>تحليل بصري ذكي</h4>
+                        <p>رؤية وقراءة تفاصيل الصور وفهمها</p>
+                    </div>
+                </div>
             </div>
 
-            <button id="sendBtn" class="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+            <div id="chatMessages" class="chat-messages"></div>
+
+            <div id="previewContainer" class="preview-container"></div>
+
+            <div id="waveAnimation" class="wave-animation">
+                <div class="stroke"></div>
+                <div class="stroke"></div>
+                <div class="stroke"></div>
+                <span style="color: var(--accent); font-size: 0.9rem; margin-right: 10px;">جاري الاستماع لصوتك الفصيح...</span>
+            </div>
+
+            <div class="input-area-container">
+                <div class="input-wrapper">
+                    <input type="text" id="userInput" placeholder="اكتب سؤالك، ارفع صورة، أو تحدث مباشرة...">
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    
+                    <button id="imgBtn" class="embed-btn" title="إرفاق صورة"><i class="fa-solid fa-camera"></i></button>
+                    <button id="micBtn" class="embed-btn" title="تسجيل صوتي"><i class="fa-solid fa-microphone"></i></button>
+                    <button id="sendBtn" class="send-action-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <div id="settingsModal" class="modal-overlay" style="display: none;">
-        <div class="modal-box">
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-card">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-sliders"></i> تخصيص التجربة</h3>
-                <span id="closeSettings" class="close-btn">&times;</span>
+                <h3><i class="fa-solid fa-sliders" style="color: var(--accent);"></i> تخصيص التجربة</h3>
+                <button id="closeSettings" class="close-modal-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <label for="dialectSelect">لهجة الرد المفضلة:</label>
-                <select id="dialectSelect">
-                    <option value="الفصحى" selected>اللغة العربية الفصحى</option>
-                    <option value="المصرية">اللهجة المصرية</option>
-                    <option value="الخليجية">اللهجة الخليجية</option>
-                    <option value="السودانية">اللهجة السودانية</option>
-                </select>
-                <hr style="border-color: #333; margin: 15px 0;">
-                <button id="clearChatBtn" class="danger-btn"><i class="fa-solid fa-trash-can"></i> مسح جميع المحادثات</button>
+                <div class="setting-group">
+                    <label>لهجة الرد المفضلة:</label>
+                    <select id="dialectSelect">
+                        <option value="الفصحى" selected>اللغة العربية الفصحى</option>
+                        <option value="المصرية">اللهجة المصرية</option>
+                        <option value="الخليجية">اللهجة الخليجية</option>
+                        <option value="السودانية">اللهجة السودانية</option>
+                    </select>
+                </div>
+                <button id="clearChatBtn" class="danger-btn-glow"><i class="fa-solid fa-trash-can"></i> مسح سجل المحادثات</button>
             </div>
         </div>
     </div>
 
-    <div id="auth-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box">
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-card">
             <div class="modal-header">
-                <h3 id="auth-title">تسجيل الدخول إلى صوتك AI</h3>
-                <span id="closeAuth" class="close-btn">&times;</span>
+                <h3 id="auth-title">بوابة الوصول الموحدة</h3>
+                <button id="closeAuth" class="close-modal-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <input type="email" id="auth-email" placeholder="البريد الإلكتروني" class="auth-input">
-                <input type="password" id="auth-password" placeholder="كلمة المرور" class="auth-input">
-                <button id="auth-submit-btn" class="auth-submit-btn">دخول</button>
-                <p id="auth-toggle-text" style="color: #aaa; text-align: center; margin-top: 15px; cursor: pointer; font-size: 14px;">ليس لديك حساب؟ <span style="color: #7c4dff; font-weight: bold;">سجل الآن</span></p>
+                <input type="email" id="auth-email" placeholder="البريد الإلكتروني الذكي" class="auth-input">
+                <input type="password" id="auth-password" placeholder="كلمة المرور الآمنة" class="auth-input">
+                <button id="auth-submit-btn" class="auth-submit-btn">تسجيل الدخول</button>
+                <p id="auth-toggle-text" style="color: var(--text-muted); text-align: center; cursor: pointer; font-size: 0.9rem;">ليس لديك حساب سيبراني؟ <span style="color: var(--accent); font-weight: bold;">أنشئ حسابك الآن</span></p>
             </div>
         </div>
     </div>
 
-    <div id="upgrade-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-box" style="border-top: 4px solid #ffb300;">
+    <div id="upgrade-modal" class="modal-overlay">
+        <div class="modal-card" style="border-top: 4px solid var(--pro-gold);">
             <div class="modal-header">
-                <h3 style="color: #ffb300;"><i class="fa-solid fa-crown"></i> باقة Pro المطلوبة</h3>
-                <span id="closeUpgrade" class="close-btn">&times;</span>
+                <h3 style="color: var(--pro-gold);"><i class="fa-solid fa-crown"></i> باقة صوتك AI Pro</h3>
+                <button id="closeUpgrade" class="close-modal-btn">&times;</button>
             </div>
             <div class="modal-body" style="text-align: center;">
-                <p id="upgrade-message" style="color: #eee; line-height: 1.6; margin-bottom: 20px;"></p>
-                <button id="subscribe-btn" class="subscribe-btn">اشترك الآن بـ $9.99 فقط</button>
+                <p id="upgrade-message" style="color: var(--text-main); line-height: 1.6; font-size: 1rem;"></p>
+                <button id="subscribe-btn" class="subscribe-btn-gold">تفعيل الاشتراك الفوري بـ $9.99 فقط</button>
             </div>
         </div>
     </div>
