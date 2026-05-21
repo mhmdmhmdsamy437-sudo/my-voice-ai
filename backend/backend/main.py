@@ -8,7 +8,6 @@ from supabase import create_client, Client
 
 app = FastAPI(title="Sawtak AI Pro Backend")
 
-# تفعيل الـ CORS لتوصيل الفرونتيند بالباكيند
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# إعدادات روابط ومفاتيح Supabase الخاصة بمشروعك بشكل آمن
 SUPABASE_URL = "https://uciymzougmatinbqxdpq.supabase.co"
 SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
 
@@ -26,18 +24,15 @@ if SUPABASE_KEY:
 else:
     supabase = None
 
-# مفتاح Groq
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_API_KEY)
 
-# دالة برمجية للفحص هل حساب المستخدم Pro أم لا (تعتمد على العمود الصحيح في قاعدة بياناتك)
 def check_pro_badge(user_id: str):
     if not supabase:
         return True
     if not user_id or user_id in ["null", "undefined", "guest"]:
-        return False
+         return False
     try:
-        # فحص الحقلين لضمان التوافق التام مع الجداول
         response = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
         if response.data:
             tier = response.data.get("subscription_tier") or response.data.get("subscription")
@@ -47,7 +42,12 @@ def check_pro_badge(user_id: str):
     except Exception:
         return False
 
-# ميكانيكية الـ System Prompt المتطور الخاص بك
+class ChatRequest(BaseModel):
+    message: str = ""
+    image: str = None  
+    dialect: str = "الفصحى"
+    user_id: str = "guest"
+
 def get_strict_system_prompt(dialect: str) -> str:
     return f"""
     You are 'Sawtak AI' (صوتك), a premium conversational assistant optimized ONLY for 3 languages: Arabic, English, and French.
@@ -58,27 +58,14 @@ def get_strict_system_prompt(dialect: str) -> str:
     4. Keep answers highly interactive, professional, and clear.
     """
 
-# الموديل المحدث لاستقبال البيانات النصية أو المدمجة بصورة Base64
-class ChatRequest(BaseModel):
-    message: str = ""
-    image: str = None  # لدعم إرسال الصور كـ Base64 من الـ Frontend
-    dialect: str = "الفصحى"
-    user_id: str = "guest"
-
-# 🌐 الرابط الرئيسي الموحد للمحادثات (النصية وتحليل الصور البصرية)
+# 🌐 الرابط الموحد المحدث المتوافق 100% مع الـ Frontend لمنع الـ undefined
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        # 1. إذا كان الطلب يحتوي على صورة، نتحقق أولاً من صلاحيات الـ Pro
         if request.image:
             if not check_pro_badge(request.user_id):
-                return {
-                    "success": False, 
-                    "error": "upgrade_required", 
-                    "reply": "⚠️ ميزة تحليل ورؤية الصور مخصصة حصرياً للمشتركين في باقة 'صوتك AI Pro'. يرجى ترقية حسابك لفتح هذه الميزة الفاخرة!"
-                }
+                return {"success": False, "reply": "⚠️ ميزة تحليل الصور مخصصة لباقة Pro."}
             
-            # معالجة الصورة وفصل الـ Header إذا كان موجوداً
             img_data = request.image
             if "," in img_data:
                 img_data = img_data.split(",")[1]
@@ -91,7 +78,7 @@ async def chat_endpoint(request: ChatRequest):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": request.message if request.message else "حلل هذه الصورة واشرح محتواها بالتفصيل."},
+                            {"type": "text", "text": request.message if request.message else "Analyze this image."},
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}}
                         ]
                     }
@@ -100,7 +87,6 @@ async def chat_endpoint(request: ChatRequest):
             )
             return {"success": True, "reply": completion.choices[0].message.content.strip()}
         
-        # 2. إذا كان طلباً نصياً عادياً
         else:
             system_msg = get_strict_system_prompt(request.dialect)
             completion = client.chat.completions.create(
@@ -112,18 +98,16 @@ async def chat_endpoint(request: ChatRequest):
                 temperature=0.4
             )
             return {"success": True, "reply": completion.choices[0].message.content.strip()}
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": False, "error": str(e)}
 
-# 🎙️ رابط معالجة الصوت الموحد المتوافق تماماً مع الـ Frontend
+# 🎙️ رابط معالجة الصوت المحدث ليفهمه الفرونتيند
 class AudioRequest(BaseModel):
-    audio: str  # يستقبل الصوت المبعوث كـ Base64
+    audio: str
 
 @app.post("/api/transcribe")
 async def transcribe_audio(request: AudioRequest):
     try:
-        # فك تشفير الملف الصوتي القادم من المتصفح وحفظه مؤقتاً
         audio_bytes = base64.b64decode(request.audio)
         temp_filename = "temp_audio.wav"
         with open(temp_filename, "wb") as f:
@@ -134,23 +118,16 @@ async def transcribe_audio(request: AudioRequest):
                 file=audio_file,
                 model="whisper-large-v3",
                 response_format="text",
-                language="ar",
-                prompt="السلام عليكم، كيف حالك؟ أهلاً بك."
+                language="ar"
             )
         captured_text = str(transcription).strip()
         os.remove(temp_filename)
-       
-        if not captured_text or captured_text.isspace():
-            return {"success": True, "text": "لم أسمعك بوضوح."}
-            
         return {"success": True, "text": captured_text}
-
     except Exception as e:
-        if os.path.exists("temp_audio.wav"):
-            os.remove("temp_audio.wav")
+        if os.path.exists("temp_audio.wav"): os.remove("temp_audio.wav")
         return {"success": False, "error": str(e)}
 
 @app.get("/")
 def read_root():
-    return {"status": "Live", "message": "سيرفر صوتك AI الاحترافي يعمل بأعلى كفاءة!"}
+    return {"status": "Live"}
 
