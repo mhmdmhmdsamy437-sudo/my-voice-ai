@@ -6,3 +6,5 @@ groq
 pydub
 pypdf
 beautifulsoup4
+gunicorn==22.0.0
+uvicorn==0.30.1
