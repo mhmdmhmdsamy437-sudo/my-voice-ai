@@ -1,5 +1,6 @@
 import os
 import base64
+import json
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -53,40 +54,46 @@ def get_strict_system_prompt(dialect: str) -> str:
     4. Provide focused, clear, and interactive answers. Never reply to multiple historical questions if they are bundled incorrectly.
     """
 
-# 1. نموذج استقبال الشات النصي العادي المتوافق مع الفرونتيند
+# نموذج استقبال الشات النصي العادي المحدث لدعم الذاكرة المستمرة
 class TextChatRequest(BaseModel):
     text: str
     dialect: str = "الفصحى"
     user_id: str = "guest"
+    history: list = []  # مصفوفة الذاكرة المضافة لاستقبال تاريخ المحادثة
 
 @app.post("/api/chat/text")
 async def chat_text_endpoint(request: TextChatRequest):
     try:
-        # تنظيف النص لضمان إزالة أي فراغات أو تداخل
         clean_message = request.text.strip()
         if not clean_message:
             return {"status": "success", "response": "لم أستلم أي نص واضح."}
 
-        system_msg = get_strict_system_prompt(request.dialect)
+        # بناء حزمة الرسائل وتغذيتها بالـ System Prompt
+        api_messages = [{"role": "system", "content": get_strict_system_prompt(request.dialect)}]
+        
+        # دمج الذاكرة القديمة القادمة من الفرونتيند
+        for msg in request.history:
+            api_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+            
+        # إضافة الرسالة الحالية الجديدة في نهاية المصفوفة
+        api_messages.append({"role": "user", "content": clean_message})
         
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": clean_message} # معالجة الرسالة الحالية فقط بدقة
-            ],
+            messages=api_messages,
             temperature=0.4
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 2. رابط معالجة وتحليل الصور (Vision) المتوافق مع الفرونتيند
+# رابط معالجة وتحليل الصور (Vision) المحدث بالذاكرة المستمرة
 @app.post("/api/chat/vision")
 async def chat_vision_endpoint(
     text: str = Form(""),
     dialect: str = Form("الفصحى"),
     user_id: str = Form("guest"),
+    history: str = Form("[]"),  # استقبال الذاكرة كـ نص هنا ليناسب صيغة الـ Form Data
     file: UploadFile = File(...)
 ):
     try:
@@ -96,32 +103,42 @@ async def chat_vision_endpoint(
         image_bytes = await file.read()
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         
-        system_msg = get_strict_system_prompt(dialect)
+        # بناء الرسائل وتغذيتها بالذاكرة المستمرة
+        api_messages = [{"role": "system", "content": get_strict_system_prompt(dialect)}]
+        
+        try:
+            parsed_history = json.loads(history)
+            for msg in parsed_history:
+                api_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+        except Exception:
+            pass
+
         user_prompt = text.strip() if text.strip() else "Analyze this image."
+        
+        # إضافة رسالة الصورة الحالية مع النص المرفق بها
+        api_messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+            ]
+        })
 
         completion = client.chat.completions.create(
             model="llama-3.2-11b-vision-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
-            ],
+            messages=api_messages,
             temperature=0.3
         )
         return {"status": "success", "response": completion.choices[0].message.content.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 3. رابط الشات الصوتي (Audio) المتوافق مع الفرونتيند المحدث
+# رابط الشات الصوتي (Audio) المحدث بالذاكرة المستمرة
 @app.post("/api/chat/audio")
 async def chat_audio_endpoint(
     dialect: str = Form("الفصحى"),
     user_id: str = Form("guest"),
+    history: str = Form("[]"),  # استقبال الذاكرة كـ نص هنا أيضاً
     file: UploadFile = File(...)
 ):
     temp_filename = "temp_voice_input.wav"
@@ -146,14 +163,22 @@ async def chat_audio_endpoint(
         if not captured_text:
             return {"status": "success", "user_speech": "", "response": "عذراً، لم أتمكن من سماع صوتك بشكل واضح."}
 
-        # توليد رد ذكي بناءً على النص المستخرج من صوت المستخدم
-        system_msg = get_strict_system_prompt(dialect)
+        # بناء الرسائل وتضمين التاريخ المستمر لتذكر سياق الكلام السابق
+        api_messages = [{"role": "system", "content": get_strict_system_prompt(dialect)}]
+        
+        try:
+            parsed_history = json.loads(history)
+            for msg in parsed_history:
+                api_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+        except Exception:
+            pass
+
+        # إضافة النص الصوتي الجديد المستخرج من الفويس الحالي
+        api_messages.append({"role": "user", "content": captured_text})
+
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": captured_text}
-            ],
+            messages=api_messages,
             temperature=0.4
         )
         
@@ -170,4 +195,3 @@ async def chat_audio_endpoint(
 @app.get("/")
 def read_root():
     return {"status": "Live", "message": "Sawtak AI Pro Backend is Fully Synchronized."}
-
