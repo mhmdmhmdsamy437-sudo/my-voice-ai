@@ -37,12 +37,14 @@ const chatMessages = document.getElementById('chatMessages');
 let isSignUpMode = false;
 let currentUser = null;
 let userProfile = null;
-let selectedImageFile = null; // الاحتفاظ بملف الصورة الفعلي لإرساله كـ Form Data
+let selectedImageFile = null; 
 let selectedImageBase64 = null;
 let mediaRecorder = null;
 let audioChunks = [];
 
-// الانتظار حتى تحميل الصفحة بالكامل لضمان قراءة الأزرار
+// مصفوفة لتخزين سياق وتاريخ المحادثة المستمرة
+let chatHistory = [];
+
 window.addEventListener('DOMContentLoaded', () => {
    
     if(authNavBtn) {
@@ -158,6 +160,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if(clearChatBtn) {
         clearChatBtn.onclick = () => {
             chatMessages.innerHTML = '';
+            chatHistory = []; // تصفير الذاكرة عند مسح الشاشة
             if(welcomeScreen) welcomeScreen.style.display = 'flex';
             settingsModal.style.display = 'none';
         };
@@ -189,6 +192,7 @@ window.addEventListener('DOMContentLoaded', () => {
                             formData.append("file", audioBlob, "audio.wav");
                             formData.append("dialect", dialect);
                             formData.append("user_id", userId);
+                            formData.append("history", JSON.stringify(chatHistory));
 
                             const res = await fetch(`${BACKEND_URL}/api/chat/audio`, {
                                 method: 'POST',
@@ -201,6 +205,10 @@ window.addEventListener('DOMContentLoaded', () => {
                                 appendMessage('user', data.user_speech);
                                 const replyDiv = appendMessage('ai', data.response);
                                 addTTSButton(replyDiv, data.response, dialect);
+
+                                chatHistory.push({ role: "user", content: data.user_speech });
+                                chatHistory.push({ role: "assistant", content: data.response });
+
                             } else {
                                 appendMessage('ai', "تعذر معالجة الصوت: " + (data.detail || "خطأ مجهول"));
                             }
@@ -294,6 +302,7 @@ async function handleSendMessage() {
             formData.append("dialect", dialect);
             formData.append("user_id", userId);
             formData.append("file", tempImageFile);
+            formData.append("history", JSON.stringify(chatHistory));
 
             response = await fetch(`${BACKEND_URL}/api/chat/vision`, {
                 method: 'POST',
@@ -304,14 +313,18 @@ async function handleSendMessage() {
             response = await fetch(`${BACKEND_URL}/api/chat/text`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: tempText, dialect: dialect, user_id: userId })
+                body: JSON.stringify({ 
+                    text: tempText, 
+                    dialect: dialect, 
+                    user_id: userId,
+                    history: chatHistory 
+                })
             });
         }
 
         const result = await response.json();
        
         if(result.status === "success") {
-            // إرسال النص الصافي للمكتبة لمعالجته بشكل سليم داخل العنصر الفرعي
             const containerSpan = aiMessageDiv.querySelector('.markdown-body');
             if(containerSpan && typeof marked !== 'undefined') {
                 marked.setOptions({ breaks: true, gfm: true });
@@ -320,6 +333,12 @@ async function handleSendMessage() {
                 containerSpan.innerText = result.response;
             }
             addTTSButton(aiMessageDiv, result.response, dialect);
+
+            if(tempText) {
+                chatHistory.push({ role: "user", content: tempText });
+            }
+            chatHistory.push({ role: "assistant", content: result.response });
+
         } else if (result.status === "upgrade_required") {
             const containerSpan = aiMessageDiv.querySelector('.markdown-body');
             if(containerSpan) containerSpan.innerText = result.response;
@@ -353,7 +372,6 @@ function appendMessage(sender, text, imageSrc = null) {
         const textSpan = document.createElement('span');
         textSpan.classList.add('markdown-body');
         
-        // التحويل المباشر للرسائل الفورية والذكاء الاصطناعي
         if (sender === 'ai' && typeof marked !== 'undefined' && text !== 'جاري التفكير المالي والسيبراني...') {
             marked.setOptions({ breaks: true, gfm: true });
             textSpan.innerHTML = marked.parse(text);
@@ -391,4 +409,3 @@ function addTTSButton(container, text, dialect) {
     };
     container.appendChild(btn);
 }
-
