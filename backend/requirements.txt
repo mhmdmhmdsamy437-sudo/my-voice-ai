@@ -4,4 +4,5 @@ supabase
 groq
 pydantic
 python-multipart
-
+gunicorn==22.0.0
+uvicorn==0.30.1
